@@ -1,94 +1,52 @@
 import subprocess
-import requests
-import time
-from urllib.parse import quote
+import tempfile
+from urllib.request import urlopen
 
 # Path to VLC
 VLC_PATH = "/Applications/VLC.app/Contents/MacOS/VLC"
 
-# HTTP API settings
-PASSWORD = "pwd"
-PLAYLIST_URL = "http://localhost:8080/requests/playlist.json"
-STATUS_URL = "http://localhost:8080/requests/status.xml"
+# Playlist path (m3u file)
+PLAYLIST_PATH = "/Users/azeraliyev/source/playground/Playlist/playlist 1.m3u"
 
 
-# Default local playlist for testing
-LOCAL_PLAYLIST = "/Users/azeraliyev/source/playground/Playlist/playlist 1.m3u"
-
-
-def fetch_playlist_path(url: str = None) -> str:
-    """
-    Get the playlist path or URL.
+def fetch_playlist_from_url(url: str) -> str:
+    """Fetch playlist from URL and save to a temp file.
     
     Args:
-        url: Optional URL to fetch playlist from. If None, returns local path.
+        url: URL to fetch the m3u playlist from.
     
     Returns:
-        Path or URL to the playlist.
+        Path to the downloaded playlist file.
     """
-    if url:
-        # VLC can open URLs directly - just return it
-        return url
+    with urlopen(url) as response:
+        content = response.read()
     
-    return LOCAL_PLAYLIST
+    # Save to temp file
+    temp_file = tempfile.NamedTemporaryFile(suffix='.m3u', delete=False)
+    temp_file.write(content)
+    temp_file.close()
+    
+    return temp_file.name
 
 
-def open_vlc_with_playlist(playlist_url: str = None, headless: bool = True):
-    """Open VLC with the playlist and HTTP interface enabled.
+def open_vlc_with_playlist(playlist_url: str = None):
+    """Open VLC with the playlist.
     
     Args:
-        playlist_url: Optional URL to fetch playlist from.
-        headless: If True, runs VLC without GUI (default: True).
+        playlist_url: Optional URL to fetch playlist from. If None, uses local file.
     """
-    playlist_path = fetch_playlist_path(playlist_url)
-    cmd = [
-        VLC_PATH,
-        "--intf", "dummy",        # No GUI
-        "--extraintf", "http",    # Enable HTTP control interface
-        "--http-password", PASSWORD,
-        playlist_path
-    ]
+    if playlist_url:
+        playlist_path = fetch_playlist_from_url(playlist_url)
+    else:
+        playlist_path = PLAYLIST_PATH
     
-    if not headless:
-        cmd.remove("--intf")
-        cmd.remove("dummy")
-    
-    subprocess.Popen(cmd)
-    print(f"VLC opened {'(headless)' if headless else ''} with playlist!")
-
-
-def get_playlist():
-    """Get the current playlist from VLC."""
-    response = requests.get(PLAYLIST_URL, auth=('', PASSWORD))
-    return response.json()['children'][0]
-
-
-def enqueue_media(file_path):
-    """Add a file to the playlist."""
-    media_uri = f"file://{file_path}"
-    encoded_uri = quote(media_uri, safe='')
-    requests.get(f"{STATUS_URL}?command=in_enqueue&input={encoded_uri}", auth=('', PASSWORD))
-
-
-def play_next():
-    """Skip to next track."""
-    requests.get(f"{STATUS_URL}?command=pl_next", auth=('', PASSWORD))
+    subprocess.Popen([VLC_PATH, playlist_path])
+    print("VLC opened with playlist!")
 
 
 if __name__ == "__main__":
-    # Option 1: Use local playlist with GUI (for video playback)
-    open_vlc_with_playlist(headless=False)
+    # Use local playlist
+    open_vlc_with_playlist()
     
-    # Option 2: Use a URL
+    # Or fetch from URL:
     # open_vlc_with_playlist("https://example.com/playlist.m3u")
-    
-    # Wait for VLC to start and HTTP interface to be ready
-    time.sleep(2)
-    
-    # Show current playlist
-    try:
-        playlist = get_playlist()
-        print("Current playlist:", playlist)
-    except Exception as e:
-        print(f"Could not fetch playlist (VLC may still be starting): {e}")
-
