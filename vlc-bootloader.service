@@ -1,0 +1,22 @@
+[Unit]
+Description=VLC Playlist Manager Bootloader
+Documentation=https://github.com/azikatti/Berlin-dooh-device
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/Berlin-dooh-device
+Environment="DISPLAY=:0"
+Environment="GITHUB_TOKEN="
+ExecStart=/usr/bin/python3 /home/pi/Berlin-dooh-device/bootloader.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:/home/pi/Berlin-dooh-device/bootloader.log
+StandardError=append:/home/pi/Berlin-dooh-device/bootloader.log
+
+[Install]
+WantedBy=graphical.target
+
