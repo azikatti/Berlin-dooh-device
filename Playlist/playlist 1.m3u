@@ -1,13 +1,7 @@
 #EXTM3U
-#EXTINF:10,Jellyfish_1080_10s_1MB.mp4
-file:///Users/azeraliyev/Downloads/Jellyfish_1080_10s_1MB.mp4
-#EXTINF:10,Sintel_1080_10s_1MB.mp4
-file:///Users/azeraliyev/Downloads/Sintel_1080_10s_1MB.mp4
-#EXTINF:10,Blender Foundation 2008, Janus Bager Kristensen 2013 - Big Buck Bunny, Sunflower version
-file:///Users/azeraliyev/Downloads/Big_Buck_Bunny_360_10s_1MB.mp4
-#EXTINF:10,Blender Foundation 2008, Janus Bager Kristensen 2013 - Big Buck Bunny, Sunflower version
-Big_Buck_Bunny_360_10s_1MB.mp4
-#EXTINF:10,Jellyfish_1080_10s_1MB.mp4
-Jellyfish_1080_10s_1MB.mp4
-#EXTINF:10,Sintel_1080_10s_1MB.mp4
-Sintel_1080_10s_1MB.mp4
+#EXTINF:10,Big Buck Bunny
+/Users/azeraliyev/source/playground/Playlist/Big_Buck_Bunny_360_10s_1MB.mp4
+#EXTINF:10,Jellyfish
+/Users/azeraliyev/source/playground/Playlist/Jellyfish_1080_10s_1MB.mp4
+#EXTINF:10,Sintel
+/Users/azeraliyev/source/playground/Playlist/Sintel_1080_10s_1MB.mp4
