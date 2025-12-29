@@ -1,6 +1,7 @@
 import subprocess
 import requests
 import time
+from urllib.parse import quote
 
 # Path to VLC
 VLC_PATH = "/Applications/VLC.app/Contents/MacOS/VLC"
@@ -65,7 +66,8 @@ def get_playlist():
 def enqueue_media(file_path):
     """Add a file to the playlist."""
     media_uri = f"file://{file_path}"
-    requests.get(f"{STATUS_URL}?command=in_enqueue&input={media_uri}", auth=('', PASSWORD))
+    encoded_uri = quote(media_uri, safe='')
+    requests.get(f"{STATUS_URL}?command=in_enqueue&input={encoded_uri}", auth=('', PASSWORD))
 
 
 def play_next():
