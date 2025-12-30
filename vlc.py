@@ -2,21 +2,28 @@
 """
 VLC Playlist Manager
 
-Downloads and manages M3U playlists with media files for VLC playback.
-Supports remote playlist fetching, parallel downloads, and local caching.
+Downloads a Dropbox folder containing playlist.m3u and media files,
+extracts everything locally, and plays using VLC.
 """
 
 import logging
 import os
+import shutil
 import subprocess
-import hashlib
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import tempfile
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 from urllib.error import URLError, HTTPError
-from urllib.parse import urlparse, unquote
-from urllib.request import urlopen, Request
+from urllib.request import urlopen, Request, build_opener, HTTPRedirectHandler, HTTPCookieProcessor
+from http.cookiejar import CookieJar
+
+# =============================================================================
+# CONFIGURATION - Update this URL to your Dropbox shared folder
+# =============================================================================
+DROPBOX_FOLDER_URL = "https://www.dropbox.com/scl/fo/c98dl5jsxp3ae90yx9ww4/AD3YT1lVanI36T3pUaN_crU?rlkey=fzm1pc1qyhl4urkfo7kk3ftss&st=846rj2qj&dl=1"
+# =============================================================================
 
 # Configure logging
 logging.basicConfig(
@@ -32,231 +39,205 @@ class Config:
     vlc_path: Path = field(default_factory=lambda: Path("/Applications/VLC.app/Contents/MacOS/VLC"))
     base_dir: Path = field(default_factory=lambda: Path(__file__).parent.resolve())
     media_dir: Path = field(default=None)
-    default_playlist: Path = field(default=None)
-    max_download_workers: int = 4
-    download_timeout: int = 30
+    playlist_filename: str = "playlist.m3u"
+    download_timeout: int = 300  # 5 minutes for large folders
     user_agent: str = "VLC-Playlist-Manager/1.0"
     
     def __post_init__(self):
         if self.media_dir is None:
             self.media_dir = self.base_dir / "media"
-        if self.default_playlist is None:
-            self.default_playlist = self.base_dir / "Playlist" / "playlist 1.m3u"
 
 
-@dataclass
-class PlaylistEntry:
-    """Represents a single entry in an M3U playlist."""
-    url: str
-    duration: int = -1
-    title: str = ""
-    
-    @property
-    def filename(self) -> str:
-        """Extract filename from URL."""
-        parsed = urlparse(self.url)
-        name = os.path.basename(unquote(parsed.path))
-        return name if name else f"media_{hashlib.md5(self.url.encode()).hexdigest()[:8]}"
-    
-    @property
-    def is_remote(self) -> bool:
-        """Check if this is a remote URL."""
-        return self.url.startswith(('http://', 'https://'))
-
-
-class M3UParser:
-    """Parser for M3U/M3U8 playlist files."""
-    
-    @staticmethod
-    def parse(content: str) -> list[PlaylistEntry]:
-        """Parse M3U content and return list of playlist entries."""
-        entries = []
-        lines = content.strip().splitlines()
-        
-        current_duration = -1
-        current_title = ""
-        
-        for line in lines:
-            line = line.strip()
-            
-            if not line or line == "#EXTM3U":
-                continue
-            
-            if line.startswith("#EXTINF:"):
-                # Parse extended info: #EXTINF:duration,title
-                try:
-                    info = line[8:]  # Remove "#EXTINF:"
-                    if ',' in info:
-                        duration_str, title = info.split(',', 1)
-                        current_duration = int(float(duration_str))
-                        current_title = title.strip()
-                    else:
-                        current_duration = int(float(info))
-                except ValueError:
-                    pass
-            elif line.startswith('#'):
-                # Skip other directives
-                continue
-            else:
-                # This is a media URL/path
-                entries.append(PlaylistEntry(
-                    url=line,
-                    duration=current_duration,
-                    title=current_title or Path(line).stem
-                ))
-                current_duration = -1
-                current_title = ""
-        
-        return entries
-    
-    @staticmethod
-    def generate(entries: list[PlaylistEntry], local_paths: dict[str, Path]) -> str:
-        """Generate M3U content from entries with updated local paths."""
-        lines = ["#EXTM3U"]
-        
-        for entry in entries:
-            # Add extended info
-            lines.append(f"#EXTINF:{entry.duration},{entry.title}")
-            
-            # Use local path if available, otherwise original URL
-            if entry.url in local_paths:
-                lines.append(str(local_paths[entry.url]))
-            else:
-                lines.append(entry.url)
-        
-        return '\n'.join(lines)
-
-
-class MediaDownloader:
-    """Handles downloading media files with progress and retry support."""
+class DropboxFolderDownloader:
+    """Downloads and extracts Dropbox shared folders."""
     
     def __init__(self, config: Config):
         self.config = config
-        self._ensure_media_dir()
+        # Create opener with cookie and redirect support for Dropbox
+        self.cookie_jar = CookieJar()
+        self.opener = build_opener(
+            HTTPCookieProcessor(self.cookie_jar),
+            HTTPRedirectHandler()
+        )
     
     def _ensure_media_dir(self) -> None:
         """Create media directory if it doesn't exist."""
         self.config.media_dir.mkdir(parents=True, exist_ok=True)
     
     def _build_request(self, url: str) -> Request:
-        """Build a request with proper headers."""
+        """Build a request with proper headers for Dropbox."""
         req = Request(url)
-        req.add_header('User-Agent', self.config.user_agent)
+        req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
+        req.add_header('Accept', '*/*')
+        req.add_header('Accept-Language', 'en-US,en;q=0.9')
         return req
     
-    def download_file(self, url: str, filename: str) -> Optional[Path]:
-        """Download a single file.
-        
-        Returns:
-            Path to downloaded file, or None if failed.
-        """
-        destination = self.config.media_dir / filename
-        
-        # Skip if already exists
-        if destination.exists():
-            logger.debug(f"Already cached: {filename}")
-            return destination
-        
-        try:
-            logger.info(f"Downloading: {filename}")
-            req = self._build_request(url)
-            
-            with urlopen(req, timeout=self.config.download_timeout) as response:
-                content = response.read()
-            
-            # Write to temp file first, then rename (atomic operation)
-            temp_path = destination.with_suffix('.tmp')
-            temp_path.write_bytes(content)
-            temp_path.rename(destination)
-            
-            logger.info(f"Downloaded: {filename} ({len(content) / 1024:.1f} KB)")
-            return destination
-            
-        except HTTPError as e:
-            logger.error(f"HTTP error downloading {filename}: {e.code} {e.reason}")
-        except URLError as e:
-            logger.error(f"URL error downloading {filename}: {e.reason}")
-        except TimeoutError:
-            logger.error(f"Timeout downloading {filename}")
-        except Exception as e:
-            logger.error(f"Failed to download {filename}: {e}")
-        
-        return None
+    def _ensure_direct_download_url(self, url: str) -> str:
+        """Ensure URL has dl=1 for direct download."""
+        if 'dl=0' in url:
+            url = url.replace('dl=0', 'dl=1')
+        elif 'dl=1' not in url:
+            if '?' in url:
+                url += '&dl=1'
+            else:
+                url += '?dl=1'
+        return url
     
-    def download_all(self, entries: list[PlaylistEntry]) -> dict[str, Path]:
-        """Download all remote media files in parallel.
-        
-        Returns:
-            Dict mapping original URLs to local paths.
-        """
-        remote_entries = [e for e in entries if e.is_remote]
-        
-        if not remote_entries:
-            logger.info("No remote files to download")
-            return {}
-        
-        logger.info(f"Downloading {len(remote_entries)} files...")
-        local_paths = {}
-        
-        with ThreadPoolExecutor(max_workers=self.config.max_download_workers) as executor:
-            future_to_entry = {
-                executor.submit(self.download_file, entry.url, entry.filename): entry
-                for entry in remote_entries
-            }
-            
-            for future in as_completed(future_to_entry):
-                entry = future_to_entry[future]
-                result = future.result()
-                if result:
-                    local_paths[entry.url] = result
-        
-        logger.info(f"Downloaded {len(local_paths)}/{len(remote_entries)} files")
-        return local_paths
-
-
-class PlaylistManager:
-    """Manages playlist downloading, parsing, and local storage."""
-    
-    def __init__(self, config: Optional[Config] = None):
-        self.config = config or Config()
-        self.downloader = MediaDownloader(self.config)
-    
-    def fetch_playlist(self, url: str) -> str:
-        """Fetch playlist content from URL."""
-        logger.info(f"Fetching playlist: {url}")
-        req = Request(url)
-        req.add_header('User-Agent', self.config.user_agent)
-        
-        with urlopen(req, timeout=self.config.download_timeout) as response:
-            return response.read().decode('utf-8')
-    
-    def download_playlist_and_media(self, playlist_url: str) -> Path:
-        """Download playlist and all referenced media files.
+    def download_and_extract(self, folder_url: str) -> Path:
+        """Download Dropbox folder as zip and extract to media directory.
         
         Args:
-            playlist_url: URL to the M3U playlist.
+            folder_url: Dropbox shared folder URL.
         
         Returns:
-            Path to the local playlist file.
+            Path to the media directory containing extracted files.
         """
-        # Fetch and parse playlist
-        content = self.fetch_playlist(playlist_url)
-        entries = M3UParser.parse(content)
+        self._ensure_media_dir()
         
-        logger.info(f"Found {len(entries)} media entries")
+        # Ensure direct download
+        folder_url = self._ensure_direct_download_url(folder_url)
         
-        # Download all media files
-        local_paths = self.downloader.download_all(entries)
+        logger.info(f"Downloading Dropbox folder...")
+        logger.debug(f"URL: {folder_url}")
         
-        # Generate updated playlist with local paths
-        updated_content = M3UParser.generate(entries, local_paths)
+        try:
+            req = self._build_request(folder_url)
+            
+            # Download to temp file using opener with cookie/redirect support
+            with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
+                tmp_path = Path(tmp_file.name)
+                
+                with self.opener.open(req, timeout=self.config.download_timeout) as response:
+                    content = response.read()
+                    tmp_file.write(content)
+                
+                size_mb = len(content) / 1024 / 1024
+                logger.info(f"Downloaded: {size_mb:.1f} MB")
+            
+            # Extract zip
+            logger.info("Extracting files...")
+            
+            with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
+                file_list = zip_ref.namelist()
+                logger.info(f"Found {len(file_list)} items in archive")
+                
+                for file_info in zip_ref.infolist():
+                    if file_info.is_dir():
+                        continue
+                    
+                    # Get the filename without the top-level folder
+                    # Dropbox zips have format: FolderName/file.ext
+                    parts = Path(file_info.filename).parts
+                    if len(parts) > 1:
+                        # Skip the top-level folder
+                        relative_path = Path(*parts[1:])
+                    else:
+                        relative_path = Path(file_info.filename)
+                    
+                    # Skip hidden files
+                    if relative_path.name.startswith('.'):
+                        continue
+                    
+                    # Extract to media directory
+                    dest_path = self.config.media_dir / relative_path
+                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    with zip_ref.open(file_info) as src:
+                        dest_path.write_bytes(src.read())
+                    
+                    logger.info(f"Extracted: {relative_path.name}")
+            
+            # Clean up temp file
+            tmp_path.unlink()
+            
+            logger.info(f"All files extracted to: {self.config.media_dir}")
+            return self.config.media_dir
+            
+        except HTTPError as e:
+            logger.error(f"HTTP error downloading folder: {e.code} {e.reason}")
+            raise
+        except URLError as e:
+            logger.error(f"URL error downloading folder: {e.reason}")
+            raise
+        except zipfile.BadZipFile:
+            logger.error("Downloaded file is not a valid zip archive. Make sure you're using a folder link, not a file link.")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to download folder: {e}")
+            raise
+
+
+class PlaylistProcessor:
+    """Processes M3U playlists to use local file paths."""
+    
+    def __init__(self, config: Config):
+        self.config = config
+    
+    def find_playlist(self) -> Optional[Path]:
+        """Find the playlist file in media directory."""
+        # First, check for the expected filename
+        playlist_path = self.config.media_dir / self.config.playlist_filename
+        if playlist_path.exists():
+            logger.info(f"Found playlist: {playlist_path}")
+            return playlist_path
         
-        # Save playlist
-        playlist_path = self.config.media_dir / "playlist.m3u"
-        playlist_path.write_text(updated_content)
+        # Search for any .m3u file
+        m3u_files = list(self.config.media_dir.glob("**/*.m3u"))
+        if m3u_files:
+            logger.info(f"Found playlist: {m3u_files[0]}")
+            return m3u_files[0]
         
-        logger.info(f"Playlist saved: {playlist_path}")
-        return playlist_path
+        logger.warning("No playlist file found!")
+        return None
+    
+    def update_playlist_paths(self, playlist_path: Path) -> Path:
+        """Update playlist to use local file paths.
+        
+        Args:
+            playlist_path: Path to the M3U playlist file.
+        
+        Returns:
+            Path to the updated playlist.
+        """
+        logger.info("Updating playlist with local paths...")
+        
+        content = playlist_path.read_text(encoding='utf-8', errors='ignore')
+        lines = content.splitlines()
+        updated_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            if not stripped or stripped.startswith('#'):
+                # Keep comments and metadata as-is
+                updated_lines.append(line)
+            else:
+                # This is a media file reference - extract just the filename
+                original_filename = Path(stripped).name
+                
+                # Look for the file in media directory
+                local_file = self.config.media_dir / original_filename
+                
+                if local_file.exists():
+                    updated_lines.append(str(local_file))
+                    logger.debug(f"Mapped: {original_filename}")
+                else:
+                    # Try to find the file anywhere in media directory
+                    found_files = list(self.config.media_dir.glob(f"**/{original_filename}"))
+                    if found_files:
+                        updated_lines.append(str(found_files[0]))
+                        logger.debug(f"Found: {original_filename}")
+                    else:
+                        # Keep original reference
+                        updated_lines.append(line)
+                        logger.warning(f"Media file not found: {original_filename}")
+        
+        # Write updated playlist
+        updated_playlist = self.config.media_dir / "playlist_local.m3u"
+        updated_playlist.write_text('\n'.join(updated_lines))
+        
+        logger.info(f"Local playlist created: {updated_playlist}")
+        return updated_playlist
 
 
 class VLCController:
@@ -264,7 +245,8 @@ class VLCController:
     
     def __init__(self, config: Optional[Config] = None):
         self.config = config or Config()
-        self.playlist_manager = PlaylistManager(self.config)
+        self.downloader = DropboxFolderDownloader(self.config)
+        self.processor = PlaylistProcessor(self.config)
         self._process: Optional[subprocess.Popen] = None
     
     def _validate_vlc(self) -> None:
@@ -272,31 +254,50 @@ class VLCController:
         if not self.config.vlc_path.exists():
             raise FileNotFoundError(f"VLC not found at: {self.config.vlc_path}")
     
-    def open_with_playlist(self, playlist_url: Optional[str] = None) -> subprocess.Popen:
-        """Open VLC with the specified playlist.
+    def download_and_play(self, dropbox_url: str) -> subprocess.Popen:
+        """Download Dropbox folder and play the playlist.
         
         Args:
-            playlist_url: Optional URL to fetch playlist from. 
-                         If None, uses default local playlist.
+            dropbox_url: Dropbox shared folder URL.
         
         Returns:
             The VLC subprocess.
         """
         self._validate_vlc()
         
-        if playlist_url:
-            playlist_path = self.playlist_manager.download_playlist_and_media(playlist_url)
-        else:
-            playlist_path = self.config.default_playlist
-            if not playlist_path.exists():
-                raise FileNotFoundError(f"Default playlist not found: {playlist_path}")
+        # Step 1: Download and extract Dropbox folder
+        logger.info("=" * 50)
+        logger.info("Step 1: Downloading Dropbox folder...")
+        logger.info("=" * 50)
+        self.downloader.download_and_extract(dropbox_url)
         
-        logger.info(f"Opening VLC with: {playlist_path}")
+        # Step 2: Find playlist
+        logger.info("=" * 50)
+        logger.info("Step 2: Finding playlist...")
+        logger.info("=" * 50)
+        playlist_path = self.processor.find_playlist()
+        if not playlist_path:
+            raise FileNotFoundError(
+                f"No {self.config.playlist_filename} found in downloaded files. "
+                f"Make sure your Dropbox folder contains a playlist.m3u file."
+            )
+        
+        # Step 3: Update playlist with local paths
+        logger.info("=" * 50)
+        logger.info("Step 3: Processing playlist...")
+        logger.info("=" * 50)
+        local_playlist = self.processor.update_playlist_paths(playlist_path)
+        
+        # Step 4: Open VLC
+        logger.info("=" * 50)
+        logger.info("Step 4: Starting VLC...")
+        logger.info("=" * 50)
         self._process = subprocess.Popen([
             str(self.config.vlc_path),
-            str(playlist_path)
+            str(local_playlist)
         ])
         
+        logger.info("VLC started successfully!")
         return self._process
     
     @property
@@ -317,22 +318,28 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="VLC Playlist Manager - Download and play M3U playlists"
+        description="VLC Playlist Manager - Download Dropbox folder and play media"
     )
     parser.add_argument(
         'url',
         nargs='?',
-        help="URL to M3U playlist (uses local playlist if not provided)"
+        default=DROPBOX_FOLDER_URL,
+        help="Dropbox shared folder URL (defaults to DROPBOX_FOLDER_URL)"
     )
     parser.add_argument(
         '--download-only',
         action='store_true',
-        help="Download playlist and media without opening VLC"
+        help="Download files without opening VLC"
     )
     parser.add_argument(
         '--media-dir',
         type=Path,
         help="Directory to store downloaded media"
+    )
+    parser.add_argument(
+        '--clean',
+        action='store_true',
+        help="Clean media directory before downloading"
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -350,14 +357,30 @@ def main():
     if args.media_dir:
         config.media_dir = args.media_dir
     
-    if args.download_only and args.url:
-        manager = PlaylistManager(config)
-        playlist_path = manager.download_playlist_and_media(args.url)
-        print(f"Downloaded to: {playlist_path}")
+    # Clean if requested
+    if args.clean and config.media_dir.exists():
+        logger.info(f"Cleaning media directory: {config.media_dir}")
+        shutil.rmtree(config.media_dir)
+    
+    if args.download_only:
+        # Just download, don't play
+        downloader = DropboxFolderDownloader(config)
+        downloader.download_and_extract(args.url)
+        
+        processor = PlaylistProcessor(config)
+        playlist = processor.find_playlist()
+        if playlist:
+            processor.update_playlist_paths(playlist)
+        
+        print(f"\nDownloaded to: {config.media_dir}")
+        print(f"Contents:")
+        for f in config.media_dir.iterdir():
+            print(f"  - {f.name}")
     else:
+        # Download and play
         vlc = VLCController(config)
-        vlc.open_with_playlist(args.url)
-        print("VLC opened with playlist!")
+        vlc.download_and_play(args.url)
+        print("\nVLC opened with playlist!")
 
 
 if __name__ == "__main__":
