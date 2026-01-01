@@ -12,6 +12,7 @@ That's it! The script will:
 - Install VLC if needed
 - Download the player files
 - Set up automatic sync every 5 minutes
+- Install watchdog cron (auto-restart if crashed)
 - Start playing your playlist
 
 ## Manual Setup
@@ -54,6 +55,24 @@ journalctl -u vlc-sync -f        # View sync logs
 
 1. **Sync (every 5 min)**: Downloads your Dropbox folder → extracts to temp → atomic swap to `media/`
 2. **Play**: VLC runs in loop mode, auto-restarts if it crashes
+
+## Reliability Features
+
+### Retry Logic
+If Dropbox download fails (network issues), the sync retries up to 3 times with 30-minute delays between attempts.
+
+### Heartbeat Monitoring
+After each successful sync, a ping is sent to [Healthchecks.io](https://healthchecks.io). Configure your own URL in `main.py`:
+```python
+HEALTHCHECK_URL = "https://hc-ping.com/YOUR-UUID-HERE"
+```
+You'll be alerted if a device stops syncing.
+
+### Watchdog Cron
+A cron job runs every 5 minutes to check if Python and VLC are running. If either dies or freezes, the service is automatically restarted:
+```
+*/5 * * * * (pgrep -f "main.py play" && pgrep -x vlc) || systemctl restart vlc-player
+```
 
 ```
 Dropbox Folder          Raspberry Pi
