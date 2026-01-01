@@ -1,0 +1,12 @@
+[Unit]
+Description=Update VLC Player code from GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/home/pi/vlc-player/update.sh
+StandardOutput=journal
+StandardError=journal
+

@@ -103,6 +103,29 @@ A cron job runs every 5 minutes to check if Python and VLC are running. If eithe
 */5 * * * * (pgrep -f "main.py play" && pgrep -x vlc) || systemctl restart vlc-player
 ```
 
+### Auto-Update Mechanism
+
+The player includes two update mechanisms for remote code updates without SSH access:
+
+#### Daily Auto-Update
+A systemd timer runs daily to check GitHub for code updates. Updates are downloaded and installed automatically, with services restarted. The timer runs 10 minutes after boot and then daily with a randomized delay to prevent all devices from updating simultaneously.
+
+#### Dropbox Trigger Update
+For immediate updates, create an `UPDATE.txt` file in your Dropbox folder containing the target version (e.g., `1.0.1`). When the sync runs (every 5 minutes), if the version in `UPDATE.txt` differs from the installed version, an update is triggered immediately.
+
+**To trigger an update:**
+1. Update code in GitHub
+2. Update `VERSION` constant in `main.py` (e.g., `VERSION = "1.0.1"`)
+3. Create/update `UPDATE.txt` in Dropbox with the new version number
+4. Wait for next sync (max 5 minutes) and the update will run automatically
+
+**Version format:** Use semantic versioning (e.g., `1.0.0`) or date format (e.g., `2024-01-15`)
+
+**Check current version:**
+```bash
+cat /home/pi/vlc-player/.version  # Shows installed version
+```
+
 ```
 Dropbox Folder          Raspberry Pi
 ┌─────────────┐         ┌─────────────┐

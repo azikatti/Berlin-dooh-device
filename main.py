@@ -8,6 +8,7 @@ from urllib.request import Request, build_opener, HTTPCookieProcessor, HTTPRedir
 
 DROPBOX_URL = "https://www.dropbox.com/scl/fo/c98dl5jsxp3ae90yx9ww4/AD3YT1lVanI36T3pUaN_crU?rlkey=fzm1pc1qyhl4urkfo7kk3ftss&st=846rj2qj&dl=1"
 HEALTHCHECK_URL = "https://hc-ping.com/da226e90-5bfd-4ada-9f12-71959e346ff1"
+VERSION = "1.0.0"  # Update this when releasing
 BASE_DIR = Path(__file__).parent
 MEDIA_DIR = BASE_DIR / "media"
 TEMP_DIR = BASE_DIR / ".media_temp"
@@ -101,6 +102,29 @@ def sync():
     TEMP_DIR.rename(MEDIA_DIR)
     print(f"Synced to {MEDIA_DIR}")
     
+    # Check for update trigger from Dropbox
+    update_file = MEDIA_DIR / "UPDATE.txt"
+    if update_file.exists():
+        try:
+            new_version = update_file.read_text().strip()
+            version_file = BASE_DIR / ".version"
+            current_version = version_file.read_text().strip() if version_file.exists() else VERSION
+            
+            # Simple version comparison (assumes semantic versioning or date format)
+            if new_version != current_version:
+                print(f"Update detected: {current_version} -> {new_version}")
+                print("Running update script...")
+                update_script = BASE_DIR / "update.sh"
+                if update_script.exists():
+                    subprocess.run([str(update_script)], check=False)
+                    version_file.write_text(new_version)
+                    print("Update complete! Restarting services...")
+                    # Note: Services will restart automatically via systemd
+                else:
+                    print("Update script not found, skipping...")
+        except Exception as e:
+            print(f"Update check failed: {e}")
+    
     # Heartbeat ping with device-specific check
     try:
         from urllib.request import urlopen
@@ -115,7 +139,9 @@ def sync():
 def play():
     """Play playlist with VLC."""
     device_id = get_device_id()
-    print(f"Device: {device_id}")
+    version_file = BASE_DIR / ".version"
+    current_version = version_file.read_text().strip() if version_file.exists() else VERSION
+    print(f"Device: {device_id} (v{current_version})")
     
     playlist = MEDIA_DIR / "playlist_local.m3u"
     if not playlist.exists():

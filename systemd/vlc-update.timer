@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for code updates daily
+
+[Timer]
+OnBootSec=10min
+OnCalendar=daily
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target
+

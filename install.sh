@@ -20,8 +20,13 @@ echo "Setting up device: $DEVICE_ID"
 hostnamectl set-hostname "$DEVICE_ID"
 
 # Copy files
-mkdir -p "$DIR"
+mkdir -p "$DIR/systemd"
 cp main.py "$DIR/"
+if [ -f "update.sh" ]; then
+    cp update.sh "$DIR/"
+    chmod +x "$DIR/update.sh"
+fi
+cp systemd/*.service systemd/*.timer "$DIR/systemd/" 2>/dev/null || true
 chmod +x "$DIR/main.py"
 
 # Save device config
@@ -31,8 +36,8 @@ chown pi:pi "$DIR/.device"
 # Install systemd services
 cp systemd/*.service systemd/*.timer /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable vlc-sync.timer vlc-player
-systemctl start vlc-sync.timer vlc-player
+systemctl enable vlc-sync.timer vlc-player vlc-update.timer
+systemctl start vlc-sync.timer vlc-player vlc-update.timer
 
 # Install watchdog cron (restarts if Python or VLC dies)
 WATCHDOG='*/5 * * * * (pgrep -f "main.py play" && pgrep -x vlc) || systemctl restart vlc-player'

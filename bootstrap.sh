@@ -40,20 +40,24 @@ curl -sSL "$REPO/main.py" -o "$DIR/main.py"
 curl -sSL "$REPO/systemd/vlc-sync.service" -o "$DIR/systemd/vlc-sync.service"
 curl -sSL "$REPO/systemd/vlc-sync.timer" -o "$DIR/systemd/vlc-sync.timer"
 curl -sSL "$REPO/systemd/vlc-player.service" -o "$DIR/systemd/vlc-player.service"
+curl -sSL "$REPO/systemd/vlc-update.service" -o "$DIR/systemd/vlc-update.service"
+curl -sSL "$REPO/systemd/vlc-update.timer" -o "$DIR/systemd/vlc-update.timer"
+curl -sSL "$REPO/update.sh" -o "$DIR/update.sh"
 
 # Save device config
 echo "DEVICE_ID=$DEVICE_ID" > "$DIR/.device"
 
 # Set permissions
 chmod +x "$DIR/main.py"
+chmod +x "$DIR/update.sh"
 chown -R pi:pi "$DIR"
 
 # Install systemd services
 echo "Installing services..."
 cp "$DIR/systemd/"*.service "$DIR/systemd/"*.timer /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable vlc-sync.timer vlc-player
-systemctl start vlc-sync.timer vlc-player
+systemctl enable vlc-sync.timer vlc-player vlc-update.timer
+systemctl start vlc-sync.timer vlc-player vlc-update.timer
 
 # Install watchdog cron (restarts if Python or VLC dies)
 echo "Installing watchdog..."
