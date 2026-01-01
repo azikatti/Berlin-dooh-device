@@ -1,4 +1,0 @@
-0. Setup access to github repo ro read users
-1. Configure github token on the devices
-2. Install the edge package from the github repo
-3. Update crontab to refresh the package regularly
