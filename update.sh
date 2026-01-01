@@ -1,5 +1,5 @@
 #!/bin/bash
-# Auto-update script (runs via systemd timer or Dropbox trigger)
+# Auto-update script (runs via systemd timer every 5 minutes)
 set -e
 
 REPO="https://raw.githubusercontent.com/azikatti/Berlin-dooh-device/main"
@@ -14,6 +14,23 @@ fi
 touch "$LOCK"
 trap "rm -f $LOCK" EXIT
 
+echo "=== Checking for updates ==="
+
+# Get current version
+CURRENT_VERSION=$(grep -oP 'VERSION = "\K[^"]+' "$DIR/main.py" 2>/dev/null || echo "unknown")
+echo "Current version: $CURRENT_VERSION"
+
+# Get GitHub version
+GITHUB_VERSION=$(curl -sSL "$REPO/main.py" | grep -oP 'VERSION = "\K[^"]+' || echo "unknown")
+echo "GitHub version: $GITHUB_VERSION"
+
+# Compare versions
+if [ "$CURRENT_VERSION" = "$GITHUB_VERSION" ]; then
+    echo "Already up to date (v$CURRENT_VERSION)"
+    exit 0
+fi
+
+echo "Update available: $CURRENT_VERSION -> $GITHUB_VERSION"
 echo "=== Updating VLC Player ==="
 
 # Create directory
@@ -45,4 +62,3 @@ systemctl restart vlc-player vlc-sync.timer
 systemctl restart vlc-update.timer 2>/dev/null || systemctl enable --now vlc-update.timer
 
 echo "Update complete!"
-

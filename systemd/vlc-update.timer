@@ -1,11 +1,10 @@
 [Unit]
-Description=Check for code updates daily
+Description=Check for code updates every 5 minutes
 
 [Timer]
-OnBootSec=10min
-OnCalendar=daily
-RandomizedDelaySec=1h
+OnBootSec=5min
+OnUnitActiveSec=5min
+RandomizedDelaySec=2min
 
 [Install]
 WantedBy=timers.target
-

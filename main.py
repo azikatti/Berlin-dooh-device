@@ -102,29 +102,6 @@ def sync():
     TEMP_DIR.rename(MEDIA_DIR)
     print(f"Synced to {MEDIA_DIR}")
     
-    # Check for update trigger from Dropbox
-    update_file = MEDIA_DIR / "UPDATE.txt"
-    if update_file.exists():
-        try:
-            new_version = update_file.read_text().strip()
-            version_file = BASE_DIR / ".version"
-            current_version = version_file.read_text().strip() if version_file.exists() else VERSION
-            
-            # Simple version comparison (assumes semantic versioning or date format)
-            if new_version != current_version:
-                print(f"Update detected: {current_version} -> {new_version}")
-                print("Running update script...")
-                update_script = BASE_DIR / "update.sh"
-                if update_script.exists():
-                    subprocess.run([str(update_script)], check=False)
-                    version_file.write_text(new_version)
-                    print("Update complete! Restarting services...")
-                    # Note: Services will restart automatically via systemd
-                else:
-                    print("Update script not found, skipping...")
-        except Exception as e:
-            print(f"Update check failed: {e}")
-    
     # Heartbeat ping with device-specific check
     try:
         from urllib.request import urlopen
