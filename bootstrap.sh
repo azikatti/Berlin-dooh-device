@@ -60,14 +60,6 @@ echo "Installing watchdog..."
 WATCHDOG='*/5 * * * * (pgrep -f "main.py play" && pgrep -x vlc) || systemctl restart vlc-player'
 (crontab -u pi -l 2>/dev/null | grep -v "vlc-player"; echo "$WATCHDOG") | crontab -u pi -
 
-# Install Tailscale if key provided
-if [ -n "$TAILSCALE_KEY" ]; then
-    echo "Installing Tailscale..."
-    curl -fsSL https://tailscale.com/install.sh | sh
-    tailscale up --authkey="$TAILSCALE_KEY" --hostname="$DEVICE_ID"
-    echo "Tailscale connected as: $DEVICE_ID"
-fi
-
 echo ""
 echo "=== Done! ==="
 echo "Device: $DEVICE_ID"
@@ -77,8 +69,3 @@ echo "Commands:"
 echo "  systemctl status vlc-player    # Check status"
 echo "  journalctl -u vlc-player -f    # View logs"
 echo "  python3 $DIR/main.py sync      # Manual sync"
-if [ -z "$TAILSCALE_KEY" ]; then
-    echo ""
-    echo "To enable remote access, run:"
-    echo "  curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up"
-fi

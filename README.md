@@ -11,14 +11,10 @@ curl -sSL https://raw.githubusercontent.com/azikatti/Berlin-dooh-device/main/boo
 You'll be prompted to enter a **device ID** (e.g., `berlin-01`, `screen-lobby`). This ID is used for:
 - System hostname
 - Heartbeat reporting
-- Tailscale (if enabled)
 
 For automated installs:
 ```bash
 curl ... | sudo DEVICE_ID=berlin-01 bash
-
-# With Tailscale:
-curl ... | sudo DEVICE_ID=berlin-01 TAILSCALE_KEY=tskey-auth-xxx bash
 ```
 
 That's it! The script will:
@@ -28,7 +24,6 @@ That's it! The script will:
 - Set up automatic sync every 5 minutes
 - Install watchdog cron (auto-restart if crashed)
 - Start playing your playlist
-- Optionally install Tailscale for remote access
 
 ## Manual Setup
 
@@ -78,7 +73,6 @@ Each device has a unique ID stored in `/home/pi/vlc-player/.device`. This ID is:
 - Set during installation (prompted or via `DEVICE_ID` env var)
 - Used as the system hostname
 - Included in Healthchecks.io pings for device-level monitoring
-- Used as Tailscale hostname if Tailscale is installed
 
 To check device ID:
 ```bash
@@ -89,7 +83,6 @@ To change device ID:
 ```bash
 echo "DEVICE_ID=new-name" | sudo tee /home/pi/vlc-player/.device
 sudo hostnamectl set-hostname new-name
-sudo tailscale set --hostname=new-name  # if using Tailscale
 ```
 
 ## Reliability Features
