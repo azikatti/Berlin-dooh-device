@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """VLC Playlist Manager. Usage: python main.py [sync|play]"""
 
-import shutil, subprocess, sys, tempfile, zipfile
+import shutil, subprocess, sys, tempfile, time, zipfile
 from http.cookiejar import CookieJar
 from pathlib import Path
 from urllib.request import Request, build_opener, HTTPCookieProcessor, HTTPRedirectHandler
@@ -13,19 +13,36 @@ MEDIA_DIR = BASE_DIR / "media"
 TEMP_DIR = BASE_DIR / ".media_temp"
 VLC = Path("/Applications/VLC.app/Contents/MacOS/VLC") if sys.platform == "darwin" else Path("/usr/bin/vlc")
 
+MAX_RETRIES = 3
+RETRY_DELAY = 1800  # 30 minutes
+
+
+def download_with_retry():
+    """Download from Dropbox with retry logic."""
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            print(f"Downloading... (attempt {attempt}/{MAX_RETRIES})")
+            opener = build_opener(HTTPCookieProcessor(CookieJar()), HTTPRedirectHandler())
+            req = Request(DROPBOX_URL, headers={"User-Agent": "Mozilla/5.0"})
+            with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
+                f.write(opener.open(req, timeout=300).read())
+                return Path(f.name)
+        except Exception as e:
+            print(f"  Failed: {e}")
+            if attempt < MAX_RETRIES:
+                wait = RETRY_DELAY * attempt
+                print(f"  Retrying in {wait // 60} minutes...")
+                time.sleep(wait)
+            else:
+                raise Exception(f"Download failed after {MAX_RETRIES} attempts")
+
 
 def sync():
     """Download from Dropbox and atomic swap."""
     shutil.rmtree(TEMP_DIR, ignore_errors=True)
     TEMP_DIR.mkdir(parents=True)
     
-    print("Downloading...")
-    opener = build_opener(HTTPCookieProcessor(CookieJar()), HTTPRedirectHandler())
-    req = Request(DROPBOX_URL, headers={"User-Agent": "Mozilla/5.0"})
-    
-    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
-        f.write(opener.open(req, timeout=300).read())
-        zip_path = Path(f.name)
+    zip_path = download_with_retry()
     
     print("Extracting...")
     with zipfile.ZipFile(zip_path) as zf:
