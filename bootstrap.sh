@@ -72,9 +72,16 @@ chown -R "$ACTUAL_USER:$ACTUAL_USER" "$DIR"
 # Sync media from Dropbox
 echo "[1/3] Syncing media from Dropbox..."
 if sudo -u "$ACTUAL_USER" python3 "$DIR/main.py" sync; then
-    echo "Media synced ✓"
+    # Verify playlist was created
+    if [ -f "$DIR/media/playlist_local.m3u" ] || [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
+        echo "Media synced ✓ (playlist found)"
+    else
+        echo "Warning: Sync completed but no playlist found in $DIR/media/"
+        ls -la "$DIR/media/" 2>/dev/null || echo "Media directory does not exist"
+    fi
 else
     echo "Warning: Initial sync failed. Will retry via timer."
+    echo "You can manually sync later with: sudo -u $ACTUAL_USER python3 $DIR/main.py sync"
 fi
 
 # Check for code updates from GitHub
@@ -117,12 +124,36 @@ echo "Watchdog installed ✓"
 # ============================================================================
 
 echo "[3/3] Starting VLC player..."
+# Wait a moment for any async operations to complete
+sleep 2
+
 # Verify playlist exists before starting
-if [ -f "$DIR/media/playlist_local.m3u" ] || [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
+PLAYLIST_FOUND=false
+PLAYLIST_FILE=""
+if [ -f "$DIR/media/playlist_local.m3u" ]; then
+    PLAYLIST_FOUND=true
+    PLAYLIST_FILE="$DIR/media/playlist_local.m3u"
+    echo "Found playlist: $PLAYLIST_FILE"
+elif [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
+    PLAYLIST_FOUND=true
+    PLAYLIST_FILE=$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)
+    echo "Found playlist: $PLAYLIST_FILE"
+fi
+
+if [ "$PLAYLIST_FOUND" = "true" ]; then
     systemctl start vlc-player
-    echo "VLC player started ✓"
+    sleep 2
+    if systemctl is-active --quiet vlc-player; then
+        echo "VLC player started ✓"
+    else
+        echo "Warning: VLC player service failed to start."
+        echo "Check logs with: journalctl -u vlc-player -n 20"
+        systemctl status vlc-player --no-pager -l || true
+    fi
 else
     echo "Warning: No playlist found. Player will start once media is synced."
+    echo "Media directory contents:"
+    ls -la "$DIR/media/" 2>/dev/null || echo "Media directory does not exist"
     systemctl start vlc-player  # Start anyway, it will retry
 fi
 

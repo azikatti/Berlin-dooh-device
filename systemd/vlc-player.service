@@ -1,6 +1,7 @@
 [Unit]
 Description=VLC Player
-After=vlc-maintenance.service
+After=vlc-maintenance.service network-online.target
+Wants=network-online.target
 
 [Service]
 User=__USER__
@@ -10,4 +11,4 @@ Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target
