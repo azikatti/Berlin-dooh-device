@@ -171,14 +171,14 @@ def play():
             str(playlist)
         ]
     else:
-        # Linux (Raspberry Pi): Use dummy interface
+        # Linux (Raspberry Pi): Let VLC auto-detect interface
         vlc_args = [
             str(VLC),
-            "--intf", "dummy",              # No GUI interface
             "--fullscreen",                 # Fullscreen video
             "--no-mouse-events",            # Ignore mouse
             "--no-keyboard-events",         # Ignore keyboard
             "--loop",                       # Loop playlist
+            "--quiet",                      # Suppress output
             str(playlist)
         ]
     
