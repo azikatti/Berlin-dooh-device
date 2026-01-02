@@ -5,9 +5,24 @@
 set -e
 
 REPO="https://raw.githubusercontent.com/azikatti/Berlin-dooh-device/main"
-DIR="/home/pi/vlc-player"
+
+# Detect the actual user (works with sudo)
+ACTUAL_USER="${SUDO_USER:-$USER}"
+if [ "$ACTUAL_USER" = "root" ]; then
+    # If running as root without sudo, try to find a non-root user
+    ACTUAL_USER=$(getent passwd | awk -F: '$3 >= 1000 && $1 != "nobody" {print $1; exit}')
+fi
+
+if [ -z "$ACTUAL_USER" ]; then
+    echo "Error: Could not determine user. Please run as: sudo -u YOUR_USER bash"
+    exit 1
+fi
+
+HOME_DIR=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
+DIR="$HOME_DIR/vlc-player"
 
 echo "=== VLC Player Bootstrap ==="
+echo "Detected user: $ACTUAL_USER"
 
 # ============================================================================
 # STEP 1: DOWNLOAD ALL FILES (Code, VLC, Media)
@@ -50,11 +65,11 @@ echo "DEVICE_ID=$DEVICE_ID" > "$DIR/.device"
 
 # Set permissions
 chmod +x "$DIR/main.py"
-chown -R pi:pi "$DIR"
+chown -R "$ACTUAL_USER:$ACTUAL_USER" "$DIR"
 
 # Sync media from Dropbox
 echo "[1/3] Syncing media from Dropbox..."
-if sudo -u pi python3 "$DIR/main.py" sync; then
+if sudo -u "$ACTUAL_USER" python3 "$DIR/main.py" sync; then
     echo "Media synced ✓"
 else
     echo "Warning: Initial sync failed. Will retry via timer."
@@ -62,7 +77,7 @@ fi
 
 # Check for code updates from GitHub
 echo "[1/3] Checking for code updates from GitHub..."
-if sudo -u pi python3 "$DIR/main.py" update; then
+if sudo -u "$ACTUAL_USER" python3 "$DIR/main.py" update; then
     echo "Code updated (if needed) ✓"
 else
     echo "Update check completed ✓"
@@ -73,6 +88,9 @@ fi
 # ============================================================================
 
 echo "[2/3] Installing systemd services..."
+# Update systemd service files with actual user and directory
+sed -i "s|User=pi|User=$ACTUAL_USER|g" "$DIR/systemd/"*.service
+sed -i "s|/home/pi/vlc-player|$DIR|g" "$DIR/systemd/"*.service
 cp "$DIR/systemd/"*.service "$DIR/systemd/"*.timer /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable vlc-maintenance.timer vlc-player
@@ -81,7 +99,7 @@ echo "Systemd services installed ✓"
 # Install watchdog cron (restarts if Python or VLC dies)
 echo "[2/3] Installing watchdog cron..."
 WATCHDOG='*/5 * * * * (pgrep -f "main.py play" && pgrep -x vlc) || systemctl restart vlc-player'
-(crontab -u pi -l 2>/dev/null | grep -v "vlc-player"; echo "$WATCHDOG") | crontab -u pi -
+(crontab -u "$ACTUAL_USER" -l 2>/dev/null | grep -v "vlc-player"; echo "$WATCHDOG") | crontab -u "$ACTUAL_USER" -
 echo "Watchdog installed ✓"
 
 # ============================================================================
