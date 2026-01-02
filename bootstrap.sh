@@ -13,14 +13,10 @@ echo "=== VLC Player Bootstrap ==="
 # STEP 1: DOWNLOAD ALL FILES (Code, VLC, Media)
 # ============================================================================
 
-# Prompt for device ID if not provided
+# Set device ID (use provided or default to berlin1)
 if [ -z "$DEVICE_ID" ]; then
-    read -p "Enter device ID (e.g., berlin-01): " DEVICE_ID
-fi
-
-if [ -z "$DEVICE_ID" ]; then
-    echo "Error: Device ID is required"
-    exit 1
+    DEVICE_ID="berlin1"
+    echo "Using default device ID: $DEVICE_ID"
 fi
 
 echo "Setting up device: $DEVICE_ID"
