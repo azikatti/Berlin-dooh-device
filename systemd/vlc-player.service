@@ -1,6 +1,6 @@
 [Unit]
 Description=VLC Player
-After=vlc-sync.service
+After=vlc-maintenance.service
 
 [Service]
 User=pi

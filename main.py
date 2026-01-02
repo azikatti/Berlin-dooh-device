@@ -1,14 +1,30 @@
 #!/usr/bin/env python3
-"""VLC Playlist Manager. Usage: python main.py [sync|play]"""
+"""VLC Playlist Manager. Usage: python main.py [sync|play|update]"""
 
-import shutil, socket, subprocess, sys, tempfile, time, zipfile
+# ============================================================================
+# IMPORTS
+# ============================================================================
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import zipfile
 from http.cookiejar import CookieJar
 from pathlib import Path
-from urllib.request import Request, build_opener, HTTPCookieProcessor, HTTPRedirectHandler
+from urllib.request import Request, build_opener, HTTPCookieProcessor, HTTPRedirectHandler, urlopen
+from urllib.parse import quote
 
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
 DROPBOX_URL = "https://www.dropbox.com/scl/fo/c98dl5jsxp3ae90yx9ww4/AD3YT1lVanI36T3pUaN_crU?rlkey=fzm1pc1qyhl4urkfo7kk3ftss&st=846rj2qj&dl=1"
 HEALTHCHECK_URL = "https://hc-ping.com/da226e90-5bfd-4ada-9f12-71959e346ff1"
 VERSION = "1.0.0"  # Update this when releasing
+REPO = "https://raw.githubusercontent.com/azikatti/Berlin-dooh-device/main"
+
 BASE_DIR = Path(__file__).parent
 MEDIA_DIR = BASE_DIR / "media"
 TEMP_DIR = BASE_DIR / ".media_temp"
@@ -26,6 +42,9 @@ HEALTHCHECK_MAP = {
     "Device5": "df591d60-bfcc-46da-b061-72b58e9ec9d3",
 }
 
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
 
 def get_device_id():
     """Get device ID from config file or fall back to hostname."""
@@ -62,6 +81,20 @@ def download_with_retry():
             else:
                 raise Exception(f"Download failed after {MAX_RETRIES} attempts")
 
+
+def get_version_from_file(file_path):
+    """Extract VERSION constant from Python file."""
+    try:
+        content = file_path.read_text()
+        match = re.search(r'VERSION\s*=\s*"([^"]+)"', content)
+        return match.group(1) if match else "unknown"
+    except Exception:
+        return "unknown"
+
+
+# ============================================================================
+# MAIN COMMANDS
+# ============================================================================
 
 def sync():
     """Download from Dropbox and atomic swap."""
@@ -104,8 +137,6 @@ def sync():
     
     # Heartbeat ping with device-specific check
     try:
-        from urllib.request import urlopen
-        from urllib.parse import quote
         ping_url = f"{get_healthcheck_url(device_id)}?rid={quote(device_id)}"
         urlopen(ping_url, timeout=10)
         print(f"Heartbeat sent ✓ ({device_id})")
@@ -129,6 +160,98 @@ def play():
     subprocess.run([str(VLC), "--loop", str(playlist)])
 
 
+def update():
+    """Check GitHub for code updates and install if new version available."""
+    lock_file = Path("/tmp/vlc-update.lock")
+    
+    # Prevent concurrent updates
+    if lock_file.exists():
+        print("Update already in progress, skipping...")
+        return
+    
+    try:
+        lock_file.touch()
+        
+        print("=== Checking for updates ===")
+        
+        # Get current version
+        current_version = get_version_from_file(BASE_DIR / "main.py")
+        print(f"Current version: {current_version}")
+        
+        # Get GitHub version
+        try:
+            opener = build_opener(HTTPCookieProcessor(CookieJar()), HTTPRedirectHandler())
+            req = Request(f"{REPO}/main.py", headers={"User-Agent": "Mozilla/5.0"})
+            github_content = opener.open(req, timeout=30).read().decode('utf-8')
+            github_version = re.search(r'VERSION\s*=\s*"([^"]+)"', github_content)
+            github_version = github_version.group(1) if github_version else "unknown"
+        except Exception as e:
+            print(f"Failed to fetch GitHub version: {e}")
+            return
+        
+        print(f"GitHub version: {github_version}")
+        
+        # Compare versions
+        if current_version == github_version:
+            print(f"Already up to date (v{current_version})")
+            return
+        
+        print(f"Update available: {current_version} -> {github_version}")
+        print("=== Updating VLC Player ===")
+        
+        # Create directory
+        systemd_dir = BASE_DIR / "systemd"
+        systemd_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Download latest files
+        print("Downloading latest code...")
+        files_to_download = [
+            ("main.py", BASE_DIR / "main.py"),
+            ("systemd/vlc-maintenance.service", systemd_dir / "vlc-maintenance.service"),
+            ("systemd/vlc-maintenance.timer", systemd_dir / "vlc-maintenance.timer"),
+            ("systemd/vlc-player.service", systemd_dir / "vlc-player.service"),
+        ]
+        
+        for remote_path, local_path in files_to_download:
+            try:
+                req = Request(f"{REPO}/{remote_path}", headers={"User-Agent": "Mozilla/5.0"})
+                content = opener.open(req, timeout=30).read()
+                local_path.write_bytes(content)
+                print(f"  Downloaded {remote_path}")
+            except Exception as e:
+                print(f"  Failed to download {remote_path}: {e}")
+        
+        # Set permissions
+        (BASE_DIR / "main.py").chmod(0o755)
+        
+        # Update systemd services
+        print("Updating systemd services...")
+        for file in systemd_dir.glob("*.service"):
+            subprocess.run(["sudo", "cp", str(file), "/etc/systemd/system/"], check=False)
+        for file in systemd_dir.glob("*.timer"):
+            subprocess.run(["sudo", "cp", str(file), "/etc/systemd/system/"], check=False)
+        subprocess.run(["sudo", "systemctl", "daemon-reload"], check=False)
+        
+        # Restart services
+        print("Restarting services...")
+        subprocess.run(["sudo", "systemctl", "restart", "vlc-player", "vlc-maintenance.timer"], check=False)
+        
+        print("Update complete!")
+        
+    finally:
+        lock_file.unlink(missing_ok=True)
+
+
+# ============================================================================
+# ENTRY POINT
+# ============================================================================
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "sync"
-    {"sync": sync, "play": play}.get(cmd, lambda: print("Usage: python main.py [sync|play]"))()
+    commands = {
+        "sync": sync,
+        "play": play,
+        "update": update,
+    }
+    func = commands.get(cmd, lambda: print("Usage: python main.py [sync|play|update]"))
+    func()

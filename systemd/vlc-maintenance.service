@@ -1,5 +1,5 @@
 [Unit]
-Description=Sync media from Dropbox
+Description=Sync media and check for updates
 After=network-online.target
 Wants=network-online.target
 
@@ -7,3 +7,5 @@ Wants=network-online.target
 Type=oneshot
 User=pi
 ExecStart=/usr/bin/python3 /home/pi/vlc-player/main.py sync
+ExecStart=/usr/bin/python3 /home/pi/vlc-player/main.py update
+

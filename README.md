@@ -40,10 +40,7 @@ DROPBOX_URL = "https://www.dropbox.com/scl/fo/YOUR_FOLDER_ID/...?dl=1"
 ```
 
 ### 3. Install
-```bash
-sudo ./install.sh
-```
-You'll be prompted for a device ID.
+Use the bootstrap script (see Quick Install above) or manually copy files and set up systemd services.
 
 ## Usage
 
@@ -51,20 +48,23 @@ You'll be prompted for a device ID.
 ```bash
 python3 main.py sync    # Download media from Dropbox
 python3 main.py play    # Play playlist with VLC
+python3 main.py update  # Check for code updates and install if available
 ```
 
 ### Service Management
 ```bash
-systemctl status vlc-player      # Check player status
-systemctl status vlc-sync.timer  # Check sync timer
-systemctl restart vlc-player     # Restart player
-journalctl -u vlc-player -f      # View player logs
-journalctl -u vlc-sync -f        # View sync logs
+systemctl status vlc-player              # Check player status
+systemctl status vlc-maintenance.timer   # Check maintenance timer
+systemctl restart vlc-player             # Restart player
+journalctl -u vlc-player -f              # View player logs
+journalctl -u vlc-maintenance -f         # View maintenance logs
 ```
 
 ## How It Works
 
-1. **Sync (every 5 min)**: Downloads your Dropbox folder → extracts to temp → atomic swap to `media/`
+1. **Maintenance (every 5 min)**: Syncs media from Dropbox AND checks for code updates
+   - Downloads Dropbox folder → extracts to temp → atomic swap to `media/`
+   - Checks GitHub for new version → downloads and installs if available
 2. **Play**: VLC runs in loop mode, auto-restarts if it crashes
 
 ## Device Identification
@@ -105,7 +105,7 @@ A cron job runs every 5 minutes to check if Python and VLC are running. If eithe
 
 ### Auto-Update Mechanism
 
-The player automatically checks GitHub every 5 minutes for code updates. If a new version is detected (by comparing the `VERSION` constant in `main.py`), the update script downloads and installs the latest code, then restarts services.
+The player automatically checks GitHub every 5 minutes for code updates. If a new version is detected (by comparing the `VERSION` constant in `main.py`), the update function downloads and installs the latest code, then restarts services.
 
 **To trigger an update:**
 1. Update code in GitHub
@@ -119,7 +119,7 @@ grep VERSION /home/pi/vlc-player/main.py
 
 **Manual update:**
 ```bash
-sudo /home/pi/vlc-player/update.sh
+python3 /home/pi/vlc-player/main.py update
 ```
 
 ```
@@ -148,13 +148,16 @@ Dropbox Folder          Raspberry Pi
 
 ```
 /home/pi/vlc-player/
-├── main.py              # Core script (sync + play)
+├── main.py              # Core script (sync, play, update)
 ├── .device              # Device ID config
 ├── media/               # Downloaded media (auto-synced)
 │   ├── playlist.m3u
 │   ├── playlist_local.m3u
 │   └── *.mp4
 └── systemd/             # Service files
+    ├── vlc-maintenance.service  # Sync + update
+    ├── vlc-maintenance.timer    # Every 5 min
+    └── vlc-player.service       # VLC player
 ```
 
 ## Requirements
@@ -175,8 +178,9 @@ ls /home/pi/vlc-player/media/    # Check downloaded files
 
 **Sync not working?**
 ```bash
-systemctl status vlc-sync.timer  # Check timer
-curl -I "YOUR_DROPBOX_URL"       # Test URL
+systemctl status vlc-maintenance.timer  # Check timer
+journalctl -u vlc-maintenance -f         # View maintenance logs
+curl -I "YOUR_DROPBOX_URL"               # Test URL
 ```
 
 **Display issues?**

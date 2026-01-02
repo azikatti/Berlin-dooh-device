@@ -1,10 +1,11 @@
 [Unit]
-Description=Check for code updates every 5 minutes
+Description=Sync media and check for updates every 5 minutes
 
 [Timer]
-OnBootSec=5min
+OnBootSec=1min
 OnUnitActiveSec=5min
 RandomizedDelaySec=2min
 
 [Install]
 WantedBy=timers.target
+
