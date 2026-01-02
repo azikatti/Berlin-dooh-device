@@ -156,15 +156,33 @@ def play():
     if not playlist:
         sys.exit("No playlist found. Run: python main.py sync")
     print(f"Playing {playlist}")
-    subprocess.run([
-        str(VLC),
-        "--intf", "dummy",              # No GUI interface
-        "--fullscreen",                 # Fullscreen video
-        "--no-mouse-events",            # Ignore mouse
-        "--no-keyboard-events",         # Ignore keyboard
-        "--loop",                       # Loop playlist
-        str(playlist)
-    ])
+    
+    # Platform-specific VLC flags
+    if sys.platform == "darwin":
+        # macOS: Use macosx interface with headless-like options
+        vlc_args = [
+            str(VLC),
+            "--intf", "macosx",            # macOS interface
+            "--fullscreen",                 # Fullscreen video
+            "--no-mouse-events",            # Ignore mouse
+            "--no-keyboard-events",         # Ignore keyboard
+            "--quiet",                      # Suppress output
+            "--loop",                       # Loop playlist
+            str(playlist)
+        ]
+    else:
+        # Linux (Raspberry Pi): Use dummy interface
+        vlc_args = [
+            str(VLC),
+            "--intf", "dummy",              # No GUI interface
+            "--fullscreen",                 # Fullscreen video
+            "--no-mouse-events",            # Ignore mouse
+            "--no-keyboard-events",         # Ignore keyboard
+            "--loop",                       # Loop playlist
+            str(playlist)
+        ]
+    
+    subprocess.run(vlc_args)
 
 
 def update():
