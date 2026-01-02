@@ -236,6 +236,11 @@ def update():
         print("Restarting services...")
         subprocess.run(["sudo", "systemctl", "restart", "vlc-player", "vlc-maintenance.timer"], check=False)
         
+        # Save version to file for tracking
+        version_file = BASE_DIR / ".version"
+        version_file.write_text(github_version)
+        print(f"Version saved: {github_version}")
+        
         print("Update complete!")
         
     finally:
