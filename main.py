@@ -171,7 +171,7 @@ def play():
             str(playlist)
         ]
     else:
-        # Linux (Raspberry Pi): Let VLC auto-detect interface
+        # Linux (Raspberry Pi): Use hardware acceleration for H.264
         vlc_args = [
             str(VLC),
             "--fullscreen",                 # Fullscreen video
@@ -179,6 +179,8 @@ def play():
             "--no-keyboard-events",         # Ignore keyboard
             "--loop",                       # Loop playlist
             "--quiet",                      # Suppress output
+            "--avcodec-hw=any",            # Enable hardware acceleration
+            "--codec=avcodec",             # Use avcodec decoder
             str(playlist)
         ]
     
