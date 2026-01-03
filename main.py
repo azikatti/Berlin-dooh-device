@@ -62,7 +62,7 @@ else:
 BASE_DIR = Path(__file__).parent
 MEDIA_DIR = BASE_DIR / "media"
 TEMP_DIR = BASE_DIR / ".media_temp"
-VLC = Path("/Applications/VLC.app/Contents/MacOS/VLC") if sys.platform == "darwin" else Path("/usr/bin/vlc")
+VLC = Path("/usr/bin/vlc")
 
 MAX_RETRIES = 3
 RETRY_DELAY = 1800  # 30 minutes
@@ -194,30 +194,17 @@ def play():
         sys.exit("No playlist found. Run: python main.py sync")
     print(f"Playing {playlist}")
     
-    # Platform-specific VLC flags
-    if sys.platform == "darwin":
-        # macOS: Use macosx interface with headless-like options
-        vlc_args = [
-            str(VLC),
-            "--intf", "macosx",            # macOS interface
-            "--fullscreen",                 # Fullscreen video
-            "--no-mouse-events",            # Ignore mouse
-            "--no-keyboard-events",         # Ignore keyboard
-            "--quiet",                      # Suppress output
-            "--loop",                       # Loop playlist
-            str(playlist)
-        ]
-    else:
-        # Linux (Raspberry Pi): Let VLC auto-detect interface
-        vlc_args = [
-            str(VLC),
-            "--fullscreen",                 # Fullscreen video
-            "--no-mouse-events",            # Ignore mouse
-            "--no-keyboard-events",         # Ignore keyboard
-            "--loop",                       # Loop playlist
-            "--quiet",                      # Suppress output
-            str(playlist)
-        ]
+    # VLC flags for Raspberry Pi
+    vlc_args = [
+        str(VLC),
+        "--fullscreen",                 # Fullscreen video
+        "--no-mouse-events",            # Ignore mouse
+        "--no-keyboard-events",         # Ignore keyboard
+        "--loop",                       # Loop playlist
+        "--quiet",                      # Suppress output
+        "--no-osd",                     # Disable all on-screen display
+        str(playlist)
+    ]
     
     subprocess.run(vlc_args)
 
