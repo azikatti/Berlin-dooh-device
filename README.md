@@ -68,8 +68,8 @@ Edit `config.env` before copying to SD card, or edit `/etc/vlc-player/config` on
 
 ### Commands
 ```bash
-python3 ~/vlc-player/main.py sync         # Download media from Dropbox
-python3 ~/vlc-player/main.py play          # Play playlist with VLC
+python3 ~/vlc-player/media_sync.py         # Download media from Dropbox
+python3 ~/vlc-player/main.py play           # Play playlist with VLC
 python3 ~/vlc-player/code_update.py        # Check for code updates and install if available
 ```
 
@@ -181,8 +181,10 @@ Dropbox Folder          Raspberry Pi
 
 ```
 ~/vlc-player/  (or /home/<username>/vlc-player/)
-├── main.py              # Core script (sync, play)
+├── main.py              # VLC player script (play only)
+├── media_sync.py        # Media sync script (downloads from Dropbox)
 ├── code_update.py       # Code update script (checks GitHub)
+├── config.py            # Shared configuration utilities
 ├── bootstrap.sh          # Bootstrap installer
 ├── config.env            # Configuration file (all settings)
 ├── media/               # Downloaded media (auto-synced)
@@ -209,7 +211,7 @@ Configuration is stored at `/etc/vlc-player/config` (copied from `config.env` du
 **No video playing?**
 ```bash
 journalctl -u vlc-player -n 50   # Check logs
-python3 ~/vlc-player/main.py sync  # Manual sync
+python3 ~/vlc-player/media_sync.py  # Manual sync
 ls ~/vlc-player/media/    # Check downloaded files
 ```
 

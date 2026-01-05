@@ -86,18 +86,20 @@ else
     REPO_AUTH="https://${GITHUB_TOKEN}@raw.githubusercontent.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/${GITHUB_REPO_BRANCH}"
     
     curl -sSL "$REPO_AUTH/main.py" -o "$DIR/main.py"
+    curl -sSL "$REPO_AUTH/config.py" -o "$DIR/config.py"
+    curl -sSL "$REPO_AUTH/media_sync.py" -o "$DIR/media_sync.py"
     curl -sSL "$REPO_AUTH/systemd/vlc-maintenance.service" -o "$DIR/systemd/vlc-maintenance.service"
     curl -sSL "$REPO_AUTH/systemd/vlc-maintenance.timer" -o "$DIR/systemd/vlc-maintenance.timer"
     curl -sSL "$REPO_AUTH/systemd/vlc-player.service" -o "$DIR/systemd/vlc-player.service"
     echo "Code files downloaded ✓"
 fi
 
-chmod +x "$DIR/main.py"
+chmod +x "$DIR/main.py" "$DIR/config.py" "$DIR/media_sync.py"
 chown -R "$USER:$USER" "$DIR"
 
 # Sync media from Dropbox
 echo "[1/3] Syncing media from Dropbox..."
-if sudo -u "$USER" python3 "$DIR/main.py" sync; then
+if sudo -u "$USER" python3 "$DIR/media_sync.py"; then
     if [ -f "$DIR/media/playlist_local.m3u" ] || [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
         echo "Media synced ✓"
     else

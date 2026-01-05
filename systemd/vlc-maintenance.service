@@ -7,6 +7,6 @@ Wants=network-online.target
 Type=oneshot
 User=__USER__
 WorkingDirectory=__DIR__
-ExecStart=/usr/bin/python3 __DIR__/main.py sync
+ExecStart=/usr/bin/python3 __DIR__/media_sync.py
 ExecStart=/usr/bin/python3 __DIR__/code_update.py
 

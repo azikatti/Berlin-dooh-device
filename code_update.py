@@ -1,45 +1,18 @@
 #!/usr/bin/env python3
 """Code update script for VLC Player. Checks GitHub and updates code if new version available."""
 
-import os
 import re
 import shutil
 import subprocess
 import time
 from pathlib import Path
-from http.cookiejar import CookieJar
-from urllib.request import Request, build_opener, HTTPCookieProcessor, HTTPRedirectHandler
+from urllib.request import Request
+
+from config import BASE_DIR, load_config, create_http_opener
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-
-def load_config():
-    """Load configuration from local config.env file."""
-    # Use local config.env in the same directory as the script
-    config_file = Path(__file__).parent / "config.env"
-    content = ""
-    
-    if config_file.exists():
-        try:
-            content = config_file.read_text()
-        except Exception as e:
-            print(f"Warning: Could not read config file: {e}")
-    
-    # Parse config content
-    if content:
-        for line in content.splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, value = line.split("=", 1)
-                os.environ[key.strip()] = value.strip()
-    
-    return {
-        "GITHUB_TOKEN": os.environ.get("GITHUB_TOKEN", ""),
-        "GITHUB_REPO_OWNER": os.environ.get("GITHUB_REPO_OWNER", "azikatti"),
-        "GITHUB_REPO_NAME": os.environ.get("GITHUB_REPO_NAME", "Berlin-dooh-device"),
-        "GITHUB_REPO_BRANCH": os.environ.get("GITHUB_REPO_BRANCH", "main"),
-    }
 
 config = load_config()
 
@@ -53,8 +26,6 @@ if GITHUB_TOKEN:
     REPO = f"https://{GITHUB_TOKEN}@raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/{REPO_BRANCH}"
 else:
     REPO = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/{REPO_BRANCH}"
-
-BASE_DIR = Path(__file__).parent
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -93,7 +64,7 @@ def update():
         
         # Get GitHub version (with cache-busting)
         try:
-            opener = build_opener(HTTPCookieProcessor(CookieJar()), HTTPRedirectHandler())
+            opener = create_http_opener()
             cache_buster = int(time.time())
             req = Request(
                 f"{REPO}/main.py?t={cache_buster}",
@@ -130,6 +101,8 @@ def update():
         print("Downloading latest code...")
         files_to_download = [
             ("main.py", BASE_DIR / "main.py"),
+            ("config.py", BASE_DIR / "config.py"),
+            ("media_sync.py", BASE_DIR / "media_sync.py"),
             ("bootstrap.sh", BASE_DIR / "bootstrap.sh"),
             ("config.env", BASE_DIR / "config.env"),
             ("code_update.py", BASE_DIR / "code_update.py"),  # Include itself
@@ -138,10 +111,12 @@ def update():
             ("systemd/vlc-player.service", systemd_dir / "vlc-player.service"),
         ]
         
+        # Use single cache-buster timestamp for all downloads in this update
+        cache_buster = int(time.time())
+        
         for remote_path, local_path in files_to_download:
             try:
                 # Add cache-busting to force fresh download
-                cache_buster = int(time.time())
                 req = Request(
                     f"{REPO}/{remote_path}?t={cache_buster}",
                     headers={
@@ -160,6 +135,8 @@ def update():
         
         # Set permissions for executable files
         (BASE_DIR / "main.py").chmod(0o755)
+        (BASE_DIR / "config.py").chmod(0o755)
+        (BASE_DIR / "media_sync.py").chmod(0o755)
         (BASE_DIR / "bootstrap.sh").chmod(0o755)
         (BASE_DIR / "code_update.py").chmod(0o755)
         
