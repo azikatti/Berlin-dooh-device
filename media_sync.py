@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 """Media Sync from Dropbox with safety measures. Usage: python media_sync.py"""
 
-import base64
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 import zipfile
 from pathlib import Path
 from urllib.request import Request
@@ -25,59 +21,12 @@ config = load_config()
 MEDIA_DIR = BASE_DIR / "media"
 STAGING_DIR = BASE_DIR / ".media_staging"
 SYNC_LOCK = Path("/tmp/vlc-sync.lock")
-VLC_SERVICE = "vlc-player"
 
 DROPBOX_URL = config["DROPBOX_URL"]
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-
-def reload_vlc_playlist():
-    """Reload VLC playlist via HTTP interface without restarting."""
-    print("Reloading VLC playlist...")
-    
-    playlist_path = MEDIA_DIR / "playlist.m3u"
-    if not playlist_path.exists():
-        print("Warning: Playlist not found, cannot reload")
-        return
-    
-    # VLC HTTP interface endpoint
-    base_url = "http://localhost:8080"
-    auth_string = base64.b64encode(b":vlc").decode('ascii')
-    
-    try:
-        # Step 1: Clear current playlist
-        clear_req = urllib.request.Request(
-            f"{base_url}/requests/status.xml?command=pl_empty",
-            headers={"Authorization": f"Basic {auth_string}"}
-        )
-        urllib.request.urlopen(clear_req, timeout=2)
-        
-        # Step 2: Add new playlist
-        playlist_url = f"file://{playlist_path.absolute()}"
-        add_req = urllib.request.Request(
-            f"{base_url}/requests/status.xml?command=in_enqueue&input={urllib.parse.quote(playlist_url)}",
-            headers={"Authorization": f"Basic {auth_string}"}
-        )
-        urllib.request.urlopen(add_req, timeout=2)
-        
-        # Step 3: Play the new playlist
-        play_req = urllib.request.Request(
-            f"{base_url}/requests/status.xml?command=pl_play",
-            headers={"Authorization": f"Basic {auth_string}"}
-        )
-        urllib.request.urlopen(play_req, timeout=2)
-        
-        print("VLC playlist reloaded ✓")
-    except urllib.error.URLError as e:
-        # VLC might not be running or HTTP interface not available
-        print(f"Warning: Could not reload playlist via HTTP (VLC may not be running): {e}")
-        print("VLC will pick up the new playlist on next loop cycle")
-    except Exception as e:
-        print(f"Warning: Playlist reload failed: {e}")
-        print("VLC will pick up the new playlist on next loop cycle")
-
 
 def download_with_retry():
     """Download from Dropbox with single retry."""
@@ -181,18 +130,13 @@ def sync():
             raise Exception("No valid playlist found in downloaded content")
         
         # Atomic swap: staging → media
-        # Safe: VLC will handle file loss gracefully and restart automatically
+        # VLC with --loop will automatically pick up the new playlist on next cycle
         print("Performing atomic swap...")
         if MEDIA_DIR.exists():
             shutil.rmtree(MEDIA_DIR, ignore_errors=True)
         STAGING_DIR.rename(MEDIA_DIR)
         print(f"Media synced to {MEDIA_DIR} ✓")
-        
-        # Small delay to ensure filesystem is ready
-        time.sleep(1)
-        
-        # Reload VLC playlist without restarting
-        reload_vlc_playlist()
+        print("VLC will pick up the new playlist on next loop cycle")
         
         print("=== Sync Complete ===")
         

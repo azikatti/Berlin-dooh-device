@@ -13,7 +13,7 @@ from config import BASE_DIR, get_device_id
 
 MEDIA_DIR = BASE_DIR / "media"
 VLC = Path("/usr/bin/vlc")
-VERSION = "1.8.9"  # Removed Healthcheck functionality
+VERSION = "1.9.0"  # Simplified: VLC picks up new playlist naturally on loop cycle
 
 
 # ============================================================================
@@ -36,13 +36,10 @@ def play():
     vlc_args = [
         str(VLC),
         "--intf", "dummy",              # Use dummy interface (no GUI)
-        "--extraintf", "http",          # Enable HTTP interface for remote control
-        "--http-port", "8080",         # HTTP interface port
-        "--http-password", "vlc",       # Simple password for security
         "--fullscreen",                 # Fullscreen video
         "--no-mouse-events",            # Ignore mouse
         "--no-keyboard-events",         # Ignore keyboard
-        "--loop",                       # Loop playlist
+        "--loop",                       # Loop playlist (will pick up new playlist on next cycle)
         "--quiet",                      # Suppress output
         "--no-osd",                     # Disable all on-screen display
         "--no-xlib",                    # Don't use X11 (for wayland/headless)
