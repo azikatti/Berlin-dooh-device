@@ -49,6 +49,17 @@ DEVICE_ID="${DEVICE_ID:-berlin1}"
 echo "Setting up device: $DEVICE_ID"
 hostnamectl set-hostname "$DEVICE_ID"
 
+# Add hostname to /etc/hosts to prevent DNS resolution warnings
+if ! grep -q "127.0.0.1.*$DEVICE_ID\|$DEVICE_ID.*127.0.0.1" /etc/hosts; then
+    # Remove any existing entry for this hostname first
+    sed -i "/$DEVICE_ID/d" /etc/hosts
+    # Add new entry
+    echo "127.0.0.1 $DEVICE_ID" >> /etc/hosts
+    echo "Hostname added to /etc/hosts ✓"
+else
+    echo "Hostname already in /etc/hosts ✓"
+fi
+
 echo "[1/3] Installing VLC..."
 if ! command -v vlc &> /dev/null; then
     apt update && apt install -y vlc
