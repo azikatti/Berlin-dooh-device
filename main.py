@@ -13,7 +13,7 @@ from config import BASE_DIR, get_device_id
 
 MEDIA_DIR = BASE_DIR / "media"
 VLC = Path("/usr/bin/vlc")
-VERSION = "1.3.0"  # Refactored: extracted shared config.py module
+VERSION = "1.4.0"  # Fixed: systemd service placeholder replacement in code_update.py
 
 
 # ============================================================================

@@ -146,11 +146,14 @@ def update():
         
         # Update systemd services
         print("Updating systemd services...")
-        for file in systemd_dir.glob("*.service"):
-            subprocess.run(["sudo", "cp", str(file), "/etc/systemd/system/"], check=False)
-        for file in systemd_dir.glob("*.timer"):
-            subprocess.run(["sudo", "cp", str(file), "/etc/systemd/system/"], check=False)
-        subprocess.run(["sudo", "systemctl", "daemon-reload"], check=False)
+        try:
+            from config import setup_systemd_services
+            setup_systemd_services()
+            print("  Systemd services updated ✓")
+        except Exception as e:
+            print(f"  Warning: Failed to update systemd services: {e}")
+            print("  Services may still have placeholders - run bootstrap.sh to fix")
+            # Don't fail the entire update, but warn the user
         
         # Restart services
         print("Restarting services...")
