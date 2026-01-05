@@ -46,7 +46,7 @@ config = load_config()
 # Use config values
 DROPBOX_URL = config["DROPBOX_URL"]
 HEALTHCHECK_URL = config["HEALTHCHECK_URL"]
-VERSION = "1.0.0"  # Code version (not config)
+VERSION = "1.0.1"  # Code version (not config)
 
 # GitHub repo setup
 GITHUB_TOKEN = config["GITHUB_TOKEN"]
@@ -197,6 +197,7 @@ def play():
     # VLC flags for Raspberry Pi
     vlc_args = [
         str(VLC),
+        "--intf", "dummy",              # Use dummy interface (no GUI, works with Wayland)
         "--fullscreen",                 # Fullscreen video
         "--no-mouse-events",            # Ignore mouse
         "--no-keyboard-events",         # Ignore keyboard
@@ -254,10 +255,12 @@ def update():
         systemd_dir = BASE_DIR / "systemd"
         systemd_dir.mkdir(parents=True, exist_ok=True)
         
-        # Download latest files
+        # Download latest files - ALL code files
         print("Downloading latest code...")
         files_to_download = [
             ("main.py", BASE_DIR / "main.py"),
+            ("bootstrap.sh", BASE_DIR / "bootstrap.sh"),
+            ("config.env", BASE_DIR / "config.env"),
             ("systemd/vlc-maintenance.service", systemd_dir / "vlc-maintenance.service"),
             ("systemd/vlc-maintenance.timer", systemd_dir / "vlc-maintenance.timer"),
             ("systemd/vlc-player.service", systemd_dir / "vlc-player.service"),
@@ -274,8 +277,16 @@ def update():
                 if "401" in str(e) or "403" in str(e):
                     print("    Authentication failed. Check GITHUB_TOKEN in config.")
         
-        # Set permissions
+        # Set permissions for executable files
         (BASE_DIR / "main.py").chmod(0o755)
+        (BASE_DIR / "bootstrap.sh").chmod(0o755)
+        
+        # Update system config file if config.env was downloaded
+        print("Updating system config...")
+        if (BASE_DIR / "config.env").exists():
+            shutil.copy(BASE_DIR / "config.env", "/etc/vlc-player/config")
+            os.chmod("/etc/vlc-player/config", 0o600)
+            print("  Config file updated ✓")
         
         # Update systemd services
         print("Updating systemd services...")
