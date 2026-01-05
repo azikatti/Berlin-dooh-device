@@ -1,6 +1,6 @@
 [Unit]
 Description=VLC Player
-After=vlc-maintenance.service network-online.target
+After=network-online.target
 Wants=network-online.target
 
 [Service]

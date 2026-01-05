@@ -147,17 +147,40 @@ echo "Watchdog installed ✓"
 echo "[3/3] Starting VLC player..."
 sleep 2
 
+# Check if playlist exists
 if [ -f "$DIR/media/playlist_local.m3u" ] || [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
+    echo "Playlist found, starting VLC player..."
     systemctl start vlc-player
-    sleep 2
+    sleep 3  # Give it more time to start
+    
     if systemctl is-active --quiet vlc-player; then
         echo "VLC player started ✓"
+        systemctl status vlc-player --no-pager | head -5 || true
     else
-        echo "Warning: VLC player failed to start"
+        echo "ERROR: VLC player failed to start"
+        echo "Service status:"
+        systemctl status vlc-player --no-pager -l | head -15 || true
+        echo ""
+        echo "Recent logs:"
+        journalctl -u vlc-player -n 30 --no-pager | tail -20 || true
+        echo ""
+        echo "Troubleshooting:"
+        echo "1. Check if VLC is installed: which vlc"
+        echo "2. Check if playlist exists: ls -la $DIR/media/*.m3u"
+        echo "3. Check permissions: ls -la $DIR/main.py"
+        echo "4. Try manual start: sudo -u $USER python3 $DIR/main.py"
     fi
 else
     echo "Warning: No playlist found. Player will start once media is synced."
     systemctl start vlc-player
+    sleep 2
+    if systemctl is-active --quiet vlc-player; then
+        echo "Service started (waiting for playlist) ✓"
+    else
+        echo "Service started but will wait for playlist"
+        echo "Checking service status..."
+        systemctl status vlc-player --no-pager -l | head -10 || true
+    fi
 fi
 
 systemctl start vlc-maintenance.timer
