@@ -25,8 +25,6 @@ VLC_SERVICE = "vlc-player"
 
 DROPBOX_URL = config["DROPBOX_URL"]
 HEALTHCHECK_URL = config["HEALTHCHECK_URL"]
-MAX_RETRIES = int(config["MAX_RETRIES"])
-RETRY_DELAY = int(config["RETRY_DELAY"])
 
 HEALTHCHECK_MAP = {
     "Device1": "b7f24740-19de-4c83-9398-b4fbfdd213ec",
@@ -53,46 +51,20 @@ def get_healthcheck_url(device_id):
     return f"https://hc-ping.com/{check_id}" if check_id else ""
 
 
-def check_disk_space(required_mb=500):
-    """Check if enough disk space is available."""
-    stat = shutil.disk_usage(BASE_DIR)
-    free_mb = stat.free / (1024 * 1024)
-    if free_mb < required_mb:
-        raise Exception(f"Insufficient disk space: {free_mb:.0f}MB free, need {required_mb}MB")
-    return True
-
-
 def restart_vlc_service():
     """Restart VLC service to load new playlist."""
-    try:
-        print("Restarting VLC service to load new playlist...")
-        result = subprocess.run(
-            ["sudo", "systemctl", "restart", VLC_SERVICE],
-            capture_output=True,
-            timeout=10
-        )
-        if result.returncode == 0:
-            print("VLC service restarted ✓")
-            return True
-        else:
-            print(f"Warning: Failed to restart VLC service: {result.stderr.decode()}")
-            return False
-    except Exception as e:
-        print(f"Warning: Could not restart VLC service: {e}")
-        return False
+    subprocess.run(["sudo", "systemctl", "restart", VLC_SERVICE], check=False)
 
 
 def download_with_retry():
-    """Download from Dropbox with retry logic."""
+    """Download from Dropbox with single retry."""
     if not DROPBOX_URL or not DROPBOX_URL.strip():
         raise Exception("DROPBOX_URL is not configured in config.env")
     
-    MAX_ZIP_SIZE = 500 * 1024 * 1024  # 500MB limit
-    
-    for attempt in range(1, MAX_RETRIES + 1):
+    for attempt in [1, 2]:
         zip_path = None
         try:
-            print(f"Downloading from Dropbox... (attempt {attempt}/{MAX_RETRIES})")
+            print(f"Downloading from Dropbox... (attempt {attempt}/2)")
             if len(DROPBOX_URL) > 80:
                 print(f"URL: {DROPBOX_URL[:80]}...")
             else:
@@ -101,31 +73,14 @@ def download_with_retry():
             opener = create_http_opener()
             req = Request(DROPBOX_URL, headers={"User-Agent": "Mozilla/5.0"})
             
-            # Download with size limit
+            # Download
             response = opener.open(req, timeout=300)
-            data = b""
-            chunk_size = 8192
-            while len(data) < MAX_ZIP_SIZE:
-                chunk = response.read(chunk_size)
-                if not chunk:
-                    break
-                data += chunk
-            
-            if len(data) >= MAX_ZIP_SIZE:
-                raise Exception(f"ZIP file exceeds size limit: {MAX_ZIP_SIZE} bytes")
+            data = response.read()
             
             # Write to temp file
             with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
                 f.write(data)
                 zip_path = Path(f.name)
-            
-            # Verify ZIP integrity after write (more efficient)
-            try:
-                with zipfile.ZipFile(zip_path) as zf:
-                    zf.testzip()  # Test integrity
-            except zipfile.BadZipFile:
-                zip_path.unlink(missing_ok=True)
-                raise Exception("Downloaded file is not a valid ZIP file")
             
             return zip_path
         except Exception as e:
@@ -137,12 +92,11 @@ def download_with_retry():
             if "unknown url type" in str(e).lower():
                 print("  Error: Invalid DROPBOX_URL format. Check config file.")
                 raise
-            if attempt < MAX_RETRIES:
-                wait = RETRY_DELAY * attempt
-                print(f"  Retrying in {wait // 60} minutes...")
-                time.sleep(wait)
+            if attempt < 2:
+                print("  Retrying...")
+                time.sleep(5)
             else:
-                raise Exception(f"Download failed after {MAX_RETRIES} attempts")
+                raise Exception("Download failed after 2 attempts")
 
 
 def check_playlist_exists(media_dir):
@@ -184,10 +138,6 @@ def sync():
         # Validate DROPBOX_URL
         if not DROPBOX_URL or not DROPBOX_URL.strip():
             raise Exception("DROPBOX_URL is not configured in config.env")
-        
-        # Check disk space
-        print("Checking disk space...")
-        check_disk_space(required_mb=500)
         
         # Clean staging directory
         if STAGING_DIR.exists():

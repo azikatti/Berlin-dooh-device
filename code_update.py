@@ -132,26 +132,24 @@ def update(force=False):
         
         # Download latest files - ALL code files
         print("Downloading latest code...")
-        MAX_CODE_FILE_SIZE = 1024 * 1024  # 1MB limit for code files
-        MAX_CONFIG_FILE_SIZE = 10 * 1024  # 10KB limit for config files
         
         files_to_download = [
-            ("main.py", BASE_DIR / "main.py", MAX_CODE_FILE_SIZE),
-            ("config.py", BASE_DIR / "config.py", MAX_CODE_FILE_SIZE),
-            ("media_sync.py", BASE_DIR / "media_sync.py", MAX_CODE_FILE_SIZE),
-            ("bootstrap.sh", BASE_DIR / "bootstrap.sh", MAX_CODE_FILE_SIZE),
-            ("stop_vlc.sh", BASE_DIR / "stop_vlc.sh", MAX_CODE_FILE_SIZE),
-            ("config.env", BASE_DIR / "config.env", MAX_CONFIG_FILE_SIZE),
-            ("code_update.py", BASE_DIR / "code_update.py", MAX_CODE_FILE_SIZE),  # Include itself
-            ("systemd/vlc-maintenance.service", systemd_dir / "vlc-maintenance.service", MAX_CODE_FILE_SIZE),
-            ("systemd/vlc-maintenance.timer", systemd_dir / "vlc-maintenance.timer", MAX_CODE_FILE_SIZE),
-            ("systemd/vlc-player.service", systemd_dir / "vlc-player.service", MAX_CODE_FILE_SIZE),
+            ("main.py", BASE_DIR / "main.py"),
+            ("config.py", BASE_DIR / "config.py"),
+            ("media_sync.py", BASE_DIR / "media_sync.py"),
+            ("bootstrap.sh", BASE_DIR / "bootstrap.sh"),
+            ("stop_vlc.sh", BASE_DIR / "stop_vlc.sh"),
+            ("config.env", BASE_DIR / "config.env"),
+            ("code_update.py", BASE_DIR / "code_update.py"),  # Include itself
+            ("systemd/vlc-maintenance.service", systemd_dir / "vlc-maintenance.service"),
+            ("systemd/vlc-maintenance.timer", systemd_dir / "vlc-maintenance.timer"),
+            ("systemd/vlc-player.service", systemd_dir / "vlc-player.service"),
         ]
         
         # Use single cache-buster timestamp for all downloads in this update
         cache_buster = int(time.time())
         
-        for remote_path, local_path, max_size in files_to_download:
+        for remote_path, local_path in files_to_download:
             try:
                 # Add cache-busting to force fresh download
                 req = Request(
@@ -163,28 +161,8 @@ def update(force=False):
                     }
                 )
                 
-                # Download with size limit
-                response = opener.open(req, timeout=30)
-                content = b""
-                chunk_size = 8192
-                while len(content) < max_size:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
-                    content += chunk
-                
-                if len(content) >= max_size:
-                    raise Exception(f"File exceeds size limit: {max_size} bytes")
-                
-                # Validate Python files
-                if remote_path.endswith('.py'):
-                    try:
-                        compile(content.decode('utf-8'), remote_path, 'exec')
-                    except SyntaxError as e:
-                        raise Exception(f"Invalid Python syntax in {remote_path}: {e}")
-                    except UnicodeDecodeError:
-                        raise Exception(f"File is not valid UTF-8: {remote_path}")
-                
+                # Download
+                content = opener.open(req, timeout=30).read()
                 local_path.write_bytes(content)
                 print(f"  Downloaded {remote_path}")
             except Exception as e:
