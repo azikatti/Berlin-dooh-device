@@ -44,9 +44,6 @@ def play():
     # Try playlist.m3u first (the actual file)
     playlist = MEDIA_DIR / "playlist.m3u"
     if not playlist.exists():
-        # Fallback to playlist_local.m3u (if validation created it)
-        playlist = MEDIA_DIR / "playlist_local.m3u"
-    if not playlist.exists():
         # Fallback to any .m3u file
         playlist = next(MEDIA_DIR.glob("*.m3u"), None)
     if not playlist:
