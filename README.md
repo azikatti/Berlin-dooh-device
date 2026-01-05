@@ -38,22 +38,21 @@ If you prefer to download and run manually:
 
 **Note:** The username is auto-detected (works with 'admin', 'user', or any username)
 
-That's it! The bootstrap script follows a 4-step process:
+That's it! The bootstrap script follows a 3-step process:
 
 **Step 0: Setup Configuration**
-- Copies `config.env` to `/etc/vlc-player/config`
+- Config file will be downloaded from GitHub
 - Loads all configuration values
 
 **Step 1: Download All Files**
-- Set the system hostname to your device ID
 - Install VLC if needed
 - Download all code files from GitHub (no pre-installation required)
 - Sync media from Dropbox (immediate, not waiting for timer)
 - Check for code updates from GitHub
 
 **Step 2: Setup Services**
-- Install systemd services
-- Install watchdog cron (auto-restart if crashed)
+- Install and enable systemd services
+- Services auto-restart on failure (systemd Restart=always)
 
 **Step 3: Start VLC Player**
 - Verify playlist is ready
@@ -90,6 +89,8 @@ Edit `config.env` before copying to SD card, or edit `/etc/vlc-player/config` on
 python3 ~/vlc-player/media_sync.py         # Download media from Dropbox
 python3 ~/vlc-player/main.py               # Play playlist with VLC
 python3 ~/vlc-player/code_update.py        # Check for code updates and install if available
+sudo ~/vlc-player/verify_bootstrap.sh      # Verify bootstrap completed successfully
+sudo ~/vlc-player/cleanup_bootstrap.sh     # Remove legacy items (watchdog cron, hostname entries)
 ```
 
 ### Service Management
@@ -104,9 +105,9 @@ journalctl -u vlc-maintenance -f         # View maintenance logs
 ## How It Works
 
 ### Bootstrap Process (First Install)
-1. **Config**: Copies `config.env` to `/etc/vlc-player/config`
-2. **Downloads**: Installs VLC, uses pre-installed files or downloads from GitHub, syncs media from Dropbox
-3. **Setup**: Installs systemd services and watchdog cron
+1. **Config**: Downloads `config.env` from GitHub
+2. **Downloads**: Installs VLC, downloads all code files from GitHub, syncs media from Dropbox
+3. **Setup**: Installs and enables systemd services (auto-restart on failure)
 4. **Start**: Launches VLC player with playlist (only after everything is ready)
 
 ### Runtime Operation
@@ -117,29 +118,27 @@ journalctl -u vlc-maintenance -f         # View maintenance logs
 
 ## Device Identification
 
-Device ID is stored in `config.env` (or `/etc/vlc-player/config` on device). This ID is:
-- Set in `config.env` before copying to SD card
-- Used as the system hostname
+Device ID is stored in `config.env`. This ID is:
+- Set in `config.env` (downloaded from GitHub or created manually)
 - Included in Healthchecks.io pings for device-level monitoring
+- Used for device identification in logs
 
 To check device ID:
 ```bash
-grep DEVICE_ID /etc/vlc-player/config
-hostname
+grep DEVICE_ID ~/vlc-player/config.env
 ```
 
 To change device ID:
 ```bash
-sudo nano /etc/vlc-player/config
+nano ~/vlc-player/config.env
 # Change DEVICE_ID=berlin1 to DEVICE_ID=new-name
-sudo hostnamectl set-hostname new-name
 sudo systemctl restart vlc-player
 ```
 
 ## Reliability Features
 
 ### Retry Logic
-If Dropbox download fails (network issues), the sync retries up to 3 times with 30-minute delays between attempts.
+If Dropbox download fails (network issues), the sync retries once (2 attempts total) with a 5-second delay.
 
 ### Heartbeat Monitoring
 After each successful sync, a ping is sent to [Healthchecks.io](https://healthchecks.io) with the device ID. Configure your URL in `config.env`:
@@ -148,11 +147,8 @@ HEALTHCHECK_URL=https://hc-ping.com/YOUR-UUID-HERE
 ```
 You'll be alerted if a device stops syncing. The device ID appears in the ping for easy identification.
 
-### Watchdog Cron
-A cron job runs every 5 minutes to check if Python and VLC are running. If either dies or freezes, the service is automatically restarted:
-```
-*/5 * * * * (pgrep -f "main.py" && pgrep -x vlc) || systemctl restart vlc-player
-```
+### Auto-Restart (Systemd)
+The `vlc-player` service is configured with `Restart=always`, so systemd automatically restarts the service if it crashes. No watchdog cron needed.
 
 ### Auto-Update Mechanism
 
@@ -205,10 +201,12 @@ Dropbox Folder          Raspberry Pi
 ├── code_update.py       # Code update script (checks GitHub)
 ├── config.py            # Shared configuration utilities
 ├── bootstrap.sh          # Bootstrap installer
+├── verify_bootstrap.sh   # Verification script (checks bootstrap)
+├── cleanup_bootstrap.sh # Cleanup script (removes legacy items)
+├── stop_vlc.sh          # Stop VLC services script
 ├── config.env            # Configuration file (all settings)
 ├── media/               # Downloaded media (auto-synced)
 │   ├── playlist.m3u
-│   ├── playlist_local.m3u
 │   └── *.mp4
 └── systemd/             # Service files
     ├── vlc-maintenance.service  # Sync + code update
@@ -216,7 +214,7 @@ Dropbox Folder          Raspberry Pi
     └── vlc-player.service       # VLC player
 ```
 
-Configuration is stored at `/etc/vlc-player/config` (copied from `config.env` during bootstrap).
+Configuration is stored in `~/vlc-player/config.env` (downloaded from GitHub during bootstrap).
 
 ## Requirements
 
@@ -239,7 +237,13 @@ ls ~/vlc-player/media/    # Check downloaded files
 systemctl status vlc-maintenance.timer  # Check timer
 journalctl -u vlc-maintenance -f         # View maintenance logs
 # Check config file
-cat /etc/vlc-player/config
+cat ~/vlc-player/config.env
+```
+
+**Clean up legacy items?**
+If you upgraded from an older version, run the cleanup script to remove watchdog cron and hostname entries:
+```bash
+sudo ~/vlc-player/cleanup_bootstrap.sh
 ```
 
 **Display issues?**
@@ -247,8 +251,12 @@ Make sure `DISPLAY=:0` is set. The player runs on the primary display.
 
 **Check device ID?**
 ```bash
-grep DEVICE_ID /etc/vlc-player/config
-hostname
+grep DEVICE_ID ~/vlc-player/config.env
+```
+
+**Verify bootstrap completed?**
+```bash
+sudo ~/vlc-player/verify_bootstrap.sh
 ```
 
 **Authentication errors?**
