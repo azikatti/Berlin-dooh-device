@@ -14,7 +14,7 @@ from config import BASE_DIR, get_device_id
 
 MEDIA_DIR = BASE_DIR / "media"
 VLC = Path("/usr/bin/vlc")
-VERSION = "1.6.3"  # Added: --force flag to code_update.py to ignore version check
+VERSION = "1.6.4"  # Fixed: Playlist now uses relative paths instead of absolute staging paths
 
 
 # ============================================================================

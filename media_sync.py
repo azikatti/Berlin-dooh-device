@@ -229,7 +229,13 @@ def validate_playlist(playlist_path, media_dir):
                     continue
             
             if media_file.exists():
-                lines.append(str(media_file))
+                # Always use relative path from media_dir (not absolute)
+                try:
+                    relative_path = media_file.relative_to(media_dir)
+                    lines.append(str(relative_path))
+                except ValueError:
+                    # Fallback to just filename if relative path calculation fails
+                    lines.append(media_file.name)
                 valid_files.append(media_file.name)
             else:
                 print(f"  Warning: Playlist references missing file: {file_path}")
