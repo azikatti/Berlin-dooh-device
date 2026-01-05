@@ -252,9 +252,9 @@ hostname
 ```
 
 **Authentication errors?**
-Make sure `GITHUB_TOKEN` is set correctly in `/etc/vlc-player/config`:
+Make sure `DROPBOX_URL` and other settings are configured in `~/vlc-player/config.env`:
 ```bash
-cat /etc/vlc-player/config | grep GITHUB_TOKEN
+cat ~/vlc-player/config.env
 ```
 
 ## License
