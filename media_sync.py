@@ -286,6 +286,8 @@ def restore_backup():
 
 def sync():
     """Download from Dropbox and safely swap media with all safety measures."""
+    backup_created = False  # Initialize early to ensure it's always defined
+    
     # Lock file to prevent concurrent syncs (atomic creation)
     try:
         SYNC_LOCK.touch(exist_ok=False)  # Fails if file already exists
