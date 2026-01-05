@@ -7,7 +7,7 @@ Wants=network-online.target
 User=__USER__
 WorkingDirectory=__DIR__
 Environment=DISPLAY=:0
-ExecStart=/usr/bin/python3 __DIR__/main.py play
+ExecStart=/usr/bin/python3 __DIR__/main.py
 Restart=always
 RestartSec=5
 

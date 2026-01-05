@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""VLC Playlist Player. Usage: python main.py play"""
+"""VLC Playlist Player."""
 
 import subprocess
 import sys
@@ -59,10 +59,4 @@ def play():
 # ============================================================================
 
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "play"
-    if cmd == "play":
-        play()
-    else:
-        print("Usage: python main.py play")
-        print("For sync, use: python media_sync.py")
-        sys.exit(1)
+    play()
