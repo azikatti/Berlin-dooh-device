@@ -13,7 +13,7 @@ from config import BASE_DIR, get_device_id
 
 MEDIA_DIR = BASE_DIR / "media"
 VLC = Path("/usr/bin/vlc")
-VERSION = "1.4.0"  # Fixed: systemd service placeholder replacement in code_update.py
+VERSION = "1.4.1"  # Simplified: removed redundant .version file tracking
 
 
 # ============================================================================
@@ -23,9 +23,7 @@ VERSION = "1.4.0"  # Fixed: systemd service placeholder replacement in code_upda
 def play():
     """Play playlist with VLC."""
     device_id = get_device_id()
-    version_file = BASE_DIR / ".version"
-    current_version = version_file.read_text().strip() if version_file.exists() else VERSION
-    print(f"Device: {device_id} (v{current_version})")
+    print(f"Device: {device_id} (v{VERSION})")
     
     playlist = MEDIA_DIR / "playlist_local.m3u"
     if not playlist.exists():
