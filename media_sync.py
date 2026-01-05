@@ -237,8 +237,8 @@ def validate_playlist(playlist_path, media_dir):
     if not valid_files:
         raise Exception("No valid media files found in playlist")
     
-    # Write validated playlist
-    validated_playlist = playlist_path.parent / "playlist_local.m3u"
+    # Write validated playlist (keep original name)
+    validated_playlist = playlist_path.parent / playlist_path.name
     validated_playlist.write_text("\n".join(lines))
     print(f"  Validated playlist: {len(valid_files)} files")
     return validated_playlist

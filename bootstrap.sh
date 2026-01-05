@@ -109,7 +109,7 @@ fi
 # Sync media from Dropbox
 echo "[1/3] Syncing media from Dropbox..."
 if sudo -u "$USER" python3 "$DIR/media_sync.py"; then
-    if [ -f "$DIR/media/playlist_local.m3u" ] || [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
+    if [ -f "$DIR/media/playlist.m3u" ] || [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
         echo "Media synced ✓"
     else
         echo "Warning: No playlist found after sync"
