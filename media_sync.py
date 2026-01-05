@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from config import BASE_DIR, get_device_id, load_config, create_http_opener
 
@@ -28,32 +28,10 @@ SYNC_LOCK = Path("/tmp/vlc-sync.lock")
 VLC_SERVICE = "vlc-player"
 
 DROPBOX_URL = config["DROPBOX_URL"]
-HEALTHCHECK_URL = config["HEALTHCHECK_URL"]
-
-HEALTHCHECK_MAP = {
-    "Device1": "b7f24740-19de-4c83-9398-b4fbfdd213ec",
-    "Device2": "da226e90-5bfd-4ada-9f12-71959e346ff1",
-    "Device3": "7a0a7b43-dbbc-4d0f-89d0-f2bb21df5eb9",
-    "Device4": "523f5911-d774-40df-a033-d1cf40e8cd40",
-    "Device5": "df591d60-bfcc-46da-b061-72b58e9ec9d3",
-}
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-
-def get_healthcheck_url(device_id):
-    """Get Healthchecks.io URL for device."""
-    # Get check ID from map or extract from HEALTHCHECK_URL
-    check_id = HEALTHCHECK_MAP.get(device_id)
-    if not check_id and HEALTHCHECK_URL:
-        try:
-            check_id = HEALTHCHECK_URL.split("/")[-1]
-        except (IndexError, AttributeError):
-            check_id = ""
-    
-    return f"https://hc-ping.com/{check_id}" if check_id else ""
-
 
 def reload_vlc_playlist():
     """Reload VLC playlist via HTTP interface without restarting."""
@@ -215,15 +193,6 @@ def sync():
         
         # Reload VLC playlist without restarting
         reload_vlc_playlist()
-        
-        # Heartbeat ping (non-critical)
-        try:
-            ping_url = get_healthcheck_url(device_id)
-            if ping_url:
-                urlopen(ping_url, timeout=10)
-                print(f"Heartbeat sent ✓ ({device_id})")
-        except Exception:
-            pass  # Non-critical, don't fail sync
         
         print("=== Sync Complete ===")
         

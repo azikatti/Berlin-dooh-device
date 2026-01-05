@@ -47,7 +47,6 @@ def load_config():
         "GITHUB_REPO_NAME": os.environ.get("GITHUB_REPO_NAME", "Berlin-dooh-device"),
         "GITHUB_REPO_BRANCH": os.environ.get("GITHUB_REPO_BRANCH", "main"),
         "DROPBOX_URL": os.environ.get("DROPBOX_URL", ""),
-        "HEALTHCHECK_URL": os.environ.get("HEALTHCHECK_URL", ""),
         "DEVICE_ID": os.environ.get("DEVICE_ID", ""),
         "MAX_RETRIES": os.environ.get("MAX_RETRIES", "3"),
         "RETRY_DELAY": os.environ.get("RETRY_DELAY", "1800"),

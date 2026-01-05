@@ -13,7 +13,7 @@ from config import BASE_DIR, get_device_id
 
 MEDIA_DIR = BASE_DIR / "media"
 VLC = Path("/usr/bin/vlc")
-VERSION = "1.8.8"  # VLC playlist reload via HTTP (no service restart needed)
+VERSION = "1.8.9"  # Removed Healthcheck functionality
 
 
 # ============================================================================

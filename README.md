@@ -15,7 +15,6 @@ curl -sSL https://raw.githubusercontent.com/azikatti/Berlin-dooh-device/main/boo
 The bootstrap script will download `config.env` from GitHub. You can edit it after installation, or create `~/vlc-player/config.env` first with your settings:
 - `DEVICE_ID=berlin1` (change per device)
 - `DROPBOX_URL=your_dropbox_url`
-- `HEALTHCHECK_URL=your_healthcheck_url`
 
 **Note:** Public repo - no GITHUB_TOKEN required!
 
@@ -74,9 +73,6 @@ DEVICE_ID=berlin1
 
 # Dropbox (shared)
 DROPBOX_URL=https://www.dropbox.com/scl/fo/YOUR_FOLDER_ID/...?dl=1
-
-# Healthcheck (can be per-device or shared)
-HEALTHCHECK_URL=https://hc-ping.com/YOUR-UUID-HERE
 ```
 
 **To change device ID:**
@@ -120,7 +116,6 @@ journalctl -u vlc-maintenance -f         # View maintenance logs
 
 Device ID is stored in `config.env`. This ID is:
 - Set in `config.env` (downloaded from GitHub or created manually)
-- Included in Healthchecks.io pings for device-level monitoring
 - Used for device identification in logs
 
 To check device ID:
@@ -139,13 +134,6 @@ sudo systemctl restart vlc-player
 
 ### Retry Logic
 If Dropbox download fails (network issues), the sync retries once (2 attempts total) with a 5-second delay.
-
-### Heartbeat Monitoring
-After each successful sync, a ping is sent to [Healthchecks.io](https://healthchecks.io) with the device ID. Configure your URL in `config.env`:
-```bash
-HEALTHCHECK_URL=https://hc-ping.com/YOUR-UUID-HERE
-```
-You'll be alerted if a device stops syncing. The device ID appears in the ping for easy identification.
 
 ### Auto-Restart (Systemd)
 The `vlc-player` service is configured with `Restart=always`, so systemd automatically restarts the service if it crashes. No watchdog cron needed.
