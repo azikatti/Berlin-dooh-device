@@ -14,7 +14,7 @@ from config import BASE_DIR, get_device_id
 
 MEDIA_DIR = BASE_DIR / "media"
 VLC = Path("/usr/bin/vlc")
-VERSION = "1.6.0"  # Removed: backup functionality, simplified sync process
+VERSION = "1.6.1"  # Fixed: VLC subprocess output capture preventing video display
 
 
 # ============================================================================
@@ -73,17 +73,18 @@ def play():
     if DEBUG:
         print(f"DEBUG: VLC command: {' '.join(vlc_args)}")
     
-    # Run VLC with error capture
+    # Run VLC (don't capture output - VLC needs to run in foreground to display)
     try:
         result = subprocess.run(
             vlc_args,
-            capture_output=True,
+            stderr=subprocess.PIPE,  # Only capture stderr for error logging
+            stdout=None,  # Let stdout go to console/display (VLC needs this)
             text=True,
             check=False
         )
         if result.returncode != 0:
-            print(f"VLC stderr: {result.stderr}", file=sys.stderr)
-            print(f"VLC stdout: {result.stdout}", file=sys.stdout)
+            if result.stderr:
+                print(f"VLC stderr: {result.stderr}", file=sys.stderr)
             sys.exit(f"VLC failed with exit code {result.returncode}")
     except Exception as e:
         print(f"Error running VLC: {e}", file=sys.stderr)

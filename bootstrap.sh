@@ -159,7 +159,7 @@ echo "[3/3] Starting VLC player..."
 sleep 2
 
 # Check if playlist exists
-if [ -f "$DIR/media/playlist_local.m3u" ] || [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
+if [ -f "$DIR/media/playlist.m3u" ] || [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
     echo "Playlist found, starting VLC player..."
     systemctl start vlc-player
     sleep 3  # Give it more time to start
