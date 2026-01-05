@@ -35,19 +35,11 @@ echo "Install directory: $DIR"
 # ============================================================================
 
 echo "[0/3] Setting up configuration..."
-# Config file may exist locally or will be downloaded from GitHub
-# Public repo - no GITHUB_TOKEN required
-if [ -f "$CONFIG_FILE" ]; then
-    # Source existing config
-    set -a
-    source "$CONFIG_FILE"
-    set +a
-    echo "Config file loaded ✓"
-else
-    echo "Config file not found - will download from GitHub"
-fi
+# Fresh install - assume no config file exists
+# Config file will be downloaded from GitHub in step 1
+echo "Config file will be downloaded from GitHub ✓"
 
-# Get DEVICE_ID from config (will be available after config is downloaded/loaded)
+# Get DEVICE_ID from defaults (will be updated after config download)
 DEVICE_ID="${DEVICE_ID:-berlin1}"
 
 # ============================================================================
@@ -93,11 +85,14 @@ echo "Code files downloaded ✓"
 chmod +x "$DIR/main.py" "$DIR/config.py" "$DIR/media_sync.py" "$DIR/code_update.py" "$DIR/bootstrap.sh"
 chown -R "$USER:$USER" "$DIR"
 
-# Re-source config file after download (in case it was updated)
+# Re-source config file after download (needed for subsequent steps)
 if [ -f "$CONFIG_FILE" ]; then
     set -a
     source "$CONFIG_FILE"
     set +a
+    # Update DEVICE_ID from downloaded config
+    DEVICE_ID="${DEVICE_ID:-berlin1}"
+    echo "Config file loaded from download ✓"
 fi
 
 # Sync media from Dropbox
@@ -171,4 +166,4 @@ echo "Maintenance timer started ✓"
 echo ""
 echo "=== Bootstrap Complete! ==="
 echo "Device: $DEVICE_ID"
-echo "Config: $CONFIG_FILE (local)"
+echo "Config: $CONFIG_FILE (downloaded from GitHub)"
