@@ -144,12 +144,16 @@ def setup_systemd_services():
     if not systemd_dir.exists():
         raise Exception(f"Systemd directory not found: {systemd_dir}")
     
-    # 4. Process service files with atomic writes
+    # 4. Process service files with atomic writes (idempotent)
     processed_files = []
     for service_file in sorted(systemd_dir.glob("*.service")):
         try:
             content = service_file.read_text()
-            original_content = content  # Keep for validation
+            
+            # Skip if already processed (no placeholders) - makes function idempotent
+            if "__USER__" not in content and "__DIR__" not in content:
+                print(f"  Skipping {service_file.name} (already processed)")
+                continue
             
             # Replace placeholders
             content = content.replace("__USER__", actual_user)

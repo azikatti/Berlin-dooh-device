@@ -103,10 +103,13 @@ if sudo -u "$USER" python3 "$DIR/media_sync.py"; then
     if [ -f "$DIR/media/playlist_local.m3u" ] || [ -n "$(find "$DIR/media" -name "*.m3u" 2>/dev/null | head -1)" ]; then
         echo "Media synced ✓"
     else
-        echo "Warning: No playlist found"
+        echo "Warning: No playlist found after sync"
+        echo "The device will retry via maintenance timer"
     fi
 else
-    echo "Warning: Initial sync failed. Will retry via timer."
+    echo "Error: Initial sync failed"
+    echo "The device will retry via maintenance timer, but VLC may not start until sync succeeds."
+    # Continue bootstrap - timer will handle retries
 fi
 
 # Check for code updates

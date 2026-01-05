@@ -40,6 +40,34 @@ def get_version_from_file(file_path):
     except Exception:
         return "unknown"
 
+
+def compare_versions(v1, v2):
+    """Compare semantic versions. Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2."""
+    def version_tuple(v):
+        """Convert version string to tuple of integers."""
+        try:
+            parts = v.split('.')
+            return tuple(int(p) for p in parts)
+        except (ValueError, AttributeError):
+            return None
+    
+    t1 = version_tuple(v1)
+    t2 = version_tuple(v2)
+    
+    if t1 is None or t2 is None:
+        # Fallback to string comparison if not semantic version
+        if v1 < v2:
+            return -1
+        elif v1 > v2:
+            return 1
+        return 0
+    
+    if t1 < t2:
+        return -1
+    elif t1 > t2:
+        return 1
+    return 0
+
 # ============================================================================
 # UPDATE FUNCTION
 # ============================================================================
@@ -48,13 +76,14 @@ def update():
     """Check GitHub for code updates and install if new version available."""
     lock_file = Path("/tmp/vlc-update.lock")
     
-    # Prevent concurrent updates
-    if lock_file.exists():
+    # Prevent concurrent updates (atomic creation)
+    try:
+        lock_file.touch(exist_ok=False)  # Fails if file already exists
+    except FileExistsError:
         print("Update already in progress, skipping...")
         return
     
     try:
-        lock_file.touch()
         
         print("=== Checking for code updates ===")
         
@@ -85,8 +114,9 @@ def update():
         
         print(f"GitHub version: {github_version}")
         
-        # Compare versions
-        if current_version == github_version:
+        # Compare versions (semantic versioning)
+        version_diff = compare_versions(current_version, github_version)
+        if version_diff >= 0:
             print(f"Already up to date (v{current_version})")
             return
         
@@ -99,22 +129,25 @@ def update():
         
         # Download latest files - ALL code files
         print("Downloading latest code...")
+        MAX_CODE_FILE_SIZE = 1024 * 1024  # 1MB limit for code files
+        MAX_CONFIG_FILE_SIZE = 10 * 1024  # 10KB limit for config files
+        
         files_to_download = [
-            ("main.py", BASE_DIR / "main.py"),
-            ("config.py", BASE_DIR / "config.py"),
-            ("media_sync.py", BASE_DIR / "media_sync.py"),
-            ("bootstrap.sh", BASE_DIR / "bootstrap.sh"),
-            ("config.env", BASE_DIR / "config.env"),
-            ("code_update.py", BASE_DIR / "code_update.py"),  # Include itself
-            ("systemd/vlc-maintenance.service", systemd_dir / "vlc-maintenance.service"),
-            ("systemd/vlc-maintenance.timer", systemd_dir / "vlc-maintenance.timer"),
-            ("systemd/vlc-player.service", systemd_dir / "vlc-player.service"),
+            ("main.py", BASE_DIR / "main.py", MAX_CODE_FILE_SIZE),
+            ("config.py", BASE_DIR / "config.py", MAX_CODE_FILE_SIZE),
+            ("media_sync.py", BASE_DIR / "media_sync.py", MAX_CODE_FILE_SIZE),
+            ("bootstrap.sh", BASE_DIR / "bootstrap.sh", MAX_CODE_FILE_SIZE),
+            ("config.env", BASE_DIR / "config.env", MAX_CONFIG_FILE_SIZE),
+            ("code_update.py", BASE_DIR / "code_update.py", MAX_CODE_FILE_SIZE),  # Include itself
+            ("systemd/vlc-maintenance.service", systemd_dir / "vlc-maintenance.service", MAX_CODE_FILE_SIZE),
+            ("systemd/vlc-maintenance.timer", systemd_dir / "vlc-maintenance.timer", MAX_CODE_FILE_SIZE),
+            ("systemd/vlc-player.service", systemd_dir / "vlc-player.service", MAX_CODE_FILE_SIZE),
         ]
         
         # Use single cache-buster timestamp for all downloads in this update
         cache_buster = int(time.time())
         
-        for remote_path, local_path in files_to_download:
+        for remote_path, local_path, max_size in files_to_download:
             try:
                 # Add cache-busting to force fresh download
                 req = Request(
@@ -125,7 +158,29 @@ def update():
                         "Pragma": "no-cache"
                     }
                 )
-                content = opener.open(req, timeout=30).read()
+                
+                # Download with size limit
+                response = opener.open(req, timeout=30)
+                content = b""
+                chunk_size = 8192
+                while len(content) < max_size:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    content += chunk
+                
+                if len(content) >= max_size:
+                    raise Exception(f"File exceeds size limit: {max_size} bytes")
+                
+                # Validate Python files
+                if remote_path.endswith('.py'):
+                    try:
+                        compile(content.decode('utf-8'), remote_path, 'exec')
+                    except SyntaxError as e:
+                        raise Exception(f"Invalid Python syntax in {remote_path}: {e}")
+                    except UnicodeDecodeError:
+                        raise Exception(f"File is not valid UTF-8: {remote_path}")
+                
                 local_path.write_bytes(content)
                 print(f"  Downloaded {remote_path}")
             except Exception as e:
@@ -157,7 +212,16 @@ def update():
         
         # Restart services
         print("Restarting services...")
-        subprocess.run(["sudo", "systemctl", "restart", "vlc-player", "vlc-maintenance.timer"], check=False)
+        result = subprocess.run(
+            ["sudo", "systemctl", "restart", "vlc-player", "vlc-maintenance.timer"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False
+        )
+        if result.returncode != 0:
+            print(f"  Warning: Service restart failed: {result.stderr.strip() if result.stderr else 'Unknown error'}")
+            print("  Services may need manual restart")
         
         print("Code update complete!")
         

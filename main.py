@@ -13,7 +13,7 @@ from config import BASE_DIR, get_device_id
 
 MEDIA_DIR = BASE_DIR / "media"
 VLC = Path("/usr/bin/vlc")
-VERSION = "1.4.1"  # Simplified: removed redundant .version file tracking
+VERSION = "1.5.0"  # Fixed: improved error handling, validation, and robustness
 
 
 # ============================================================================
@@ -24,6 +24,10 @@ def play():
     """Play playlist with VLC."""
     device_id = get_device_id()
     print(f"Device: {device_id} (v{VERSION})")
+    
+    # Check if VLC is installed
+    if not VLC.exists():
+        sys.exit(f"Error: VLC not found at {VLC}. Please install VLC: sudo apt install vlc")
     
     playlist = MEDIA_DIR / "playlist_local.m3u"
     if not playlist.exists():
@@ -45,7 +49,9 @@ def play():
         str(playlist)
     ]
     
-    subprocess.run(vlc_args)
+    result = subprocess.run(vlc_args)
+    if result.returncode != 0:
+        sys.exit(f"VLC failed with exit code {result.returncode}")
 
 
 # ============================================================================
