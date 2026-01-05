@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bootstrap VLC Player for Raspberry Pi
-# Run: sudo /home/user/vlc-player/bootstrap.sh
-# Note: GITHUB_TOKEN should be set in config.env file
+# Run: sudo ~/vlc-player/bootstrap.sh
+# Note: Username is auto-detected. GITHUB_TOKEN should be set in config.env file
 set -e
 
 # Prevent multiple runs

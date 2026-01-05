@@ -11,12 +11,13 @@ Syncs media from Dropbox and plays on loop using VLC. Designed for Raspberry Pi 
    - `DROPBOX_URL=your_dropbox_url`
    - `HEALTHCHECK_URL=your_healthcheck_url`
 
-2. Copy entire `vlc-player` folder to SD card at `/home/user/vlc-player/`
+2. Copy entire `vlc-player` folder to SD card at `~/vlc-player/` (or `/home/<username>/vlc-player/`)
 
 3. On Raspberry Pi, run:
    ```bash
-   sudo /home/user/vlc-player/bootstrap.sh
+   sudo ~/vlc-player/bootstrap.sh
    ```
+   Note: The username is auto-detected (works with 'admin', 'user', or any username)
 
 That's it! The bootstrap script follows a 4-step process:
 
@@ -67,9 +68,9 @@ Edit `config.env` before copying to SD card, or edit `/etc/vlc-player/config` on
 
 ### Commands
 ```bash
-python3 /home/user/vlc-player/main.py sync         # Download media from Dropbox
-python3 /home/user/vlc-player/main.py play          # Play playlist with VLC
-python3 /home/user/vlc-player/code_update.py        # Check for code updates and install if available
+python3 ~/vlc-player/main.py sync         # Download media from Dropbox
+python3 ~/vlc-player/main.py play          # Play playlist with VLC
+python3 ~/vlc-player/code_update.py        # Check for code updates and install if available
 ```
 
 ### Service Management
@@ -145,12 +146,12 @@ The player automatically checks GitHub every 5 minutes for code updates. If a ne
 
 **Check current version:**
 ```bash
-grep VERSION /home/user/vlc-player/main.py
+grep VERSION ~/vlc-player/main.py
 ```
 
 **Manual code update:**
 ```bash
-python3 /home/user/vlc-player/code_update.py
+python3 ~/vlc-player/code_update.py
 ```
 
 ```
@@ -179,7 +180,7 @@ Dropbox Folder          Raspberry Pi
 ## File Structure
 
 ```
-/home/user/vlc-player/
+~/vlc-player/  (or /home/<username>/vlc-player/)
 ├── main.py              # Core script (sync, play)
 ├── code_update.py       # Code update script (checks GitHub)
 ├── bootstrap.sh          # Bootstrap installer
@@ -208,8 +209,8 @@ Configuration is stored at `/etc/vlc-player/config` (copied from `config.env` du
 **No video playing?**
 ```bash
 journalctl -u vlc-player -n 50   # Check logs
-python3 /home/user/vlc-player/main.py sync  # Manual sync
-ls /home/user/vlc-player/media/    # Check downloaded files
+python3 ~/vlc-player/main.py sync  # Manual sync
+ls ~/vlc-player/media/    # Check downloaded files
 ```
 
 **Sync not working?**
