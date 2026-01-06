@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Media Sync from Dropbox with safety measures. Usage: python media_sync.py"""
 
+import os
 import shutil
 import subprocess
 import sys
@@ -21,12 +22,82 @@ config = load_config()
 MEDIA_DIR = BASE_DIR / "media"
 STAGING_DIR = BASE_DIR / ".media_staging"
 SYNC_LOCK = Path("/tmp/vlc-sync.lock")
+LOCK_STALE_SECONDS = 60 * 60  # 1 hour before lock is considered stale
 
 DROPBOX_URL = config["DROPBOX_URL"]
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
+def is_process_running(pid: int) -> bool:
+    """Best-effort check whether a PID is currently running."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False  # no such process
+    except PermissionError:
+        return True   # process exists but we can't signal it
+    else:
+        return True
+
+
+def acquire_lock(force: bool) -> bool:
+    """
+    Acquire the sync lock with stale detection.
+
+    Returns:
+        True  - lock acquired, safe to run
+        False - another (likely active) sync is running, should skip
+    """
+    # Fast path: no lock yet
+    if not SYNC_LOCK.exists():
+        pid = os.getpid()
+        now = time.time()
+        SYNC_LOCK.write_text(f"{pid}:{now}\n")
+        return True
+
+    # Lock exists: inspect it
+    try:
+        content = SYNC_LOCK.read_text().strip()
+        pid_str, ts_str = content.split(":", 1)
+        old_pid = int(pid_str)
+        old_ts = float(ts_str)
+    except Exception:
+        print("Lock file is corrupt; treating as stale and overriding it.")
+        old_pid = None
+        old_ts = 0.0
+
+    now = time.time()
+    age = now - old_ts if old_ts else None
+    is_stale = age is not None and age > LOCK_STALE_SECONDS
+    running = old_pid is not None and is_process_running(old_pid)
+
+    if running and not is_stale:
+        # Active sync detected
+        if force:
+            print(
+                f"Sync appears to be running (PID {old_pid}); "
+                "not overriding lock even with --force."
+            )
+        else:
+            print(f"Sync already in progress (PID {old_pid}), skipping...")
+        return False
+
+    # No active process or stale lock – safe to override
+    if is_stale:
+        print(
+            f"Stale lock detected (PID {old_pid}, age ~{int(age)}s); "
+            "overriding and starting new sync."
+        )
+    else:
+        print("Lock file present but no active process; overriding lock.")
+
+    SYNC_LOCK.unlink(missing_ok=True)
+    pid = os.getpid()
+    SYNC_LOCK.write_text(f"{pid}:{now}\n")
+    return True
+
 
 def download_with_retry():
     """Download from Dropbox with single retry (with progress)."""
@@ -124,15 +195,12 @@ def check_playlist_exists(media_dir):
 # MAIN SYNC FUNCTION
 # ============================================================================
 
-def sync():
+def sync(force: bool = False):
     """Download from Dropbox and safely swap media (simplified)."""
-    # Lock file to prevent concurrent syncs (atomic creation)
-    try:
-        SYNC_LOCK.touch(exist_ok=False)  # Fails if file already exists
-    except FileExistsError:
-        print("Sync already in progress, skipping...")
+    # Lock file to prevent concurrent syncs (with stale detection)
+    if not acquire_lock(force=force):
         return
-    
+
     try:
         device_id = get_device_id()
         print(f"=== Media Sync ===")
@@ -201,5 +269,7 @@ def sync():
 
 
 if __name__ == "__main__":
-    sync()
+    # Simple flag parser for manual overrides
+    force = "--force" in sys.argv or "-f" in sys.argv
+    sync(force=force)
 
