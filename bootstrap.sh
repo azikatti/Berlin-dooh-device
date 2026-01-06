@@ -7,12 +7,27 @@ set -e
 # --- Detect user/home/dir -----------------------------------------------------
 if [ -n "$SUDO_USER" ]; then
   USER="$SUDO_USER"
-elif [ "$USER" = "root" ] || [ -z "$USER" ]; then
-  USER=$(getent passwd | awk -F: '$3 >= 1000 && $1 != "nobody" {print $1; exit}')
-  [ -z "$USER" ] && USER="pi"
+elif [ "$USER" != "root" ] && [ -n "$USER" ]; then
+  # Already running as a non-root user
+  USER="$USER"
+else
+  # Running as root, try to detect the actual user
+  # First try to get the user from the process that invoked sudo
+  USER=$(logname 2>/dev/null || echo "")
+  if [ -z "$USER" ] || [ "$USER" = "root" ]; then
+    # Fallback: find first non-root user with UID >= 1000
+    USER=$(getent passwd | awk -F: '$3 >= 1000 && $1 != "nobody" {print $1; exit}')
+    [ -z "$USER" ] && USER="pi"
+  fi
 fi
 
-HOME_DIR="/home/$USER"
+# Get the actual home directory for this user (don't assume /home/$USER)
+HOME_DIR=$(getent passwd "$USER" | cut -d: -f6)
+if [ -z "$HOME_DIR" ] || [ ! -d "$HOME_DIR" ]; then
+  # Fallback to /home/$USER if getent fails
+  HOME_DIR="/home/$USER"
+fi
+
 DIR="$HOME_DIR/vlc-player"
 CONFIG_FILE="$DIR/config.env"
 
