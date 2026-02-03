@@ -36,12 +36,12 @@ echo "User: $USER"
 echo "Install directory: $DIR"
 
 # --- Install dependencies -----------------------------------------------------
-echo "[1/3] Installing dependencies (git, vlc)..."
+echo "[1/4] Installing dependencies (git, vlc)..."
 apt update
-apt install -y git vlc
+apt install -y git vlc curl
 
 # --- Clone or update repo -----------------------------------------------------
-echo "[2/3] Fetching code from GitHub..."
+echo "[2/4] Fetching code from GitHub..."
 
 if [ -d "$DIR/.git" ]; then
   echo "Repo already exists, updating..."
@@ -65,6 +65,8 @@ if [ ! -f "$CONFIG_FILE" ]; then
   cat > "$CONFIG_FILE" <<EOF
 DEVICE_ID=berlin1
 DROPBOX_URL=https://www.dropbox.com/scl/fo/YOUR_FOLDER_ID/...?dl=1
+# Optional: for remote SSH over Tailscale (create at https://login.tailscale.com/admin/settings/keys)
+# TAILSCALE_AUTHKEY=
 EOF
   chown "$USER:$USER" "$CONFIG_FILE"
   echo "Created default config.env at $CONFIG_FILE"
@@ -72,8 +74,14 @@ else
   echo "Using existing config.env at $CONFIG_FILE"
 fi
 
+# Load TAILSCALE_AUTHKEY from config if not already set (for optional step 4)
+if [ -z "${TAILSCALE_AUTHKEY:-}" ] && [ -f "$CONFIG_FILE" ]; then
+  TAILSCALE_AUTHKEY=$(grep -E '^TAILSCALE_AUTHKEY=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  export TAILSCALE_AUTHKEY
+fi
+
 # --- Install systemd services -------------------------------------------------
-echo "[3/3] Installing systemd services..."
+echo "[3/4] Installing systemd services..."
 
 # Replace placeholders in service files before copying
 for service_file in "$DIR/systemd/"*.service "$DIR/systemd/"*.timer; do
@@ -87,6 +95,27 @@ cp "$DIR/systemd/"*.service "$DIR/systemd/"*.timer /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable vlc-player vlc-maintenance.timer
 systemctl start vlc-player vlc-maintenance.timer
+
+# --- Install and enable Tailscale (optional join if TAILSCALE_AUTHKEY set) ----
+echo "[4/4] Tailscale..."
+if command -v tailscale &>/dev/null; then
+  echo "Tailscale already installed."
+else
+  curl -fsSL https://tailscale.com/install.sh | sh
+fi
+systemctl enable --now tailscaled 2>/dev/null || true
+if [ -n "${TAILSCALE_AUTHKEY:-}" ]; then
+  echo "Joining tailnet with auth key..."
+  tailscale up --authkey="$TAILSCALE_AUTHKEY" --accept-dns=false
+  TS_IP=$(tailscale ip -4 2>/dev/null || true)
+  if [ -n "$TS_IP" ]; then
+    echo "Tailscale joined. SSH via: ssh $USER@$TS_IP"
+  else
+    echo "Tailscale joined. Run 'tailscale status' on the Pi to see its Tailscale IP for SSH."
+  fi
+else
+  echo "TAILSCALE_AUTHKEY not set. Install complete; run 'tailscale up' manually or set TAILSCALE_AUTHKEY in config.env and re-run bootstrap."
+fi
 
 echo ""
 echo "=== Bootstrap Complete ==="

@@ -253,6 +253,35 @@ fi
 echo ""
 
 # ============================================================================
+# 6. TAILSCALE (optional)
+# ============================================================================
+
+echo "=== 6. Tailscale ==="
+
+if command -v tailscale &>/dev/null; then
+    check 0 "Tailscale installed"
+    if systemctl is-active --quiet tailscaled 2>/dev/null; then
+        check 0 "tailscaled is running"
+    else
+        warn "tailscaled not running"
+    fi
+    if tailscale status &>/dev/null; then
+        TS_IP=$(tailscale ip -4 2>/dev/null || true)
+        if [ -n "$TS_IP" ]; then
+            check 0 "Tailscale connected ($TS_IP)"
+        else
+            check 0 "Tailscale logged in"
+        fi
+    else
+        warn "Tailscale not logged in (run 'tailscale up' or set TAILSCALE_AUTHKEY)"
+    fi
+else
+    warn "Tailscale not installed (optional; set TAILSCALE_AUTHKEY in config.env to enable)"
+fi
+
+echo ""
+
+# ============================================================================
 # SUMMARY
 # ============================================================================
 
