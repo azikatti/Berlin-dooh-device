@@ -36,6 +36,11 @@ def update() -> None:
     run(["git", "-C", str(repo_dir), "fetch", "origin"])
     run(["git", "-C", str(repo_dir), "reset", "--hard", "origin/main"])
 
+    # Set display rotation in boot config (vertical screen; takes effect after reboot)
+    script = repo_dir / "scripts" / "apply_display_rotation.sh"
+    if script.exists():
+        subprocess.run(["sudo", str(script)], check=False)
+
     # Restart services to pick up new code
     # Adjust service names if they ever change
     run(["sudo", "systemctl", "restart", "vlc-player"])

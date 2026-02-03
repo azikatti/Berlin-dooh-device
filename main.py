@@ -14,35 +14,7 @@ from config import BASE_DIR, get_device_id
 
 MEDIA_DIR = BASE_DIR / "media"
 VLC = Path("/usr/bin/vlc")
-VERSION = "1.9.3"  # Rotate display right before VLC (Raspberry Pi vertical)
-
-
-# ============================================================================
-# DISPLAY ROTATION (Raspberry Pi vertical screen)
-# ============================================================================
-
-def set_display_rotate_right():
-    """Set display rotation to right (90°) for vertical screen. Safe if already rotated."""
-    try:
-        out = subprocess.run(
-            ["xrandr", "--query"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if out.returncode != 0:
-            return
-        for line in out.stdout.splitlines():
-            if " connected" in line:
-                name = line.split()[0]
-                subprocess.run(
-                    ["xrandr", "--output", name, "--rotate", "right"],
-                    capture_output=True,
-                    timeout=5,
-                )
-                return
-    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-        pass
+VERSION = "1.9.4"  # Display rotation via boot config (scripts/apply_display_rotation.sh)
 
 
 # ============================================================================
@@ -51,7 +23,6 @@ def set_display_rotate_right():
 
 def play():
     """Play playlist with VLC."""
-    set_display_rotate_right()
     device_id = get_device_id()
     print(f"Device: {device_id} (v{VERSION})")
     

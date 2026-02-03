@@ -105,6 +105,13 @@ systemctl daemon-reload
 systemctl enable vlc-player vlc-maintenance.timer
 systemctl start vlc-player vlc-maintenance.timer
 
+# --- Set display rotation for vertical screen (Pi 4/5; takes effect after reboot) ---
+if [ -f "$DIR/scripts/apply_display_rotation.sh" ]; then
+  chmod +x "$DIR/scripts/apply_display_rotation.sh"
+  echo "Applying display rotation (vertical) in boot config..."
+  "$DIR/scripts/apply_display_rotation.sh" || true
+fi
+
 # --- Install and enable Tailscale (optional join if TAILSCALE_AUTHKEY set) ----
 echo "[5/5] Tailscale..."
 if command -v tailscale &>/dev/null; then
