@@ -36,12 +36,21 @@ echo "User: $USER"
 echo "Install directory: $DIR"
 
 # --- Install dependencies -----------------------------------------------------
-echo "[1/4] Installing dependencies (git, vlc)..."
+echo "[1/5] Installing dependencies (git, vlc)..."
 apt update
 apt install -y git vlc curl
 
+# --- Ensure system time is set (for GitHub SSL verification) ------------------
+echo "[2/5] Setting/correcting system time..."
+if command -v timedatectl &>/dev/null; then
+  timedatectl set-ntp true 2>/dev/null || true
+  echo "  NTP enabled. Waiting a few seconds for time sync..."
+  sleep 5
+fi
+echo "  Current time: $(date -Iseconds 2>/dev/null || date)"
+
 # --- Clone or update repo -----------------------------------------------------
-echo "[2/4] Fetching code from GitHub..."
+echo "[3/5] Fetching code from GitHub..."
 
 if [ -d "$DIR/.git" ]; then
   echo "Repo already exists, updating..."
@@ -74,14 +83,14 @@ else
   echo "Using existing config.env at $CONFIG_FILE"
 fi
 
-# Load TAILSCALE_AUTHKEY from config if not already set (for optional step 4)
+# Load TAILSCALE_AUTHKEY from config if not already set (for optional step 5)
 if [ -z "${TAILSCALE_AUTHKEY:-}" ] && [ -f "$CONFIG_FILE" ]; then
   TAILSCALE_AUTHKEY=$(grep -E '^TAILSCALE_AUTHKEY=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   export TAILSCALE_AUTHKEY
 fi
 
 # --- Install systemd services -------------------------------------------------
-echo "[3/4] Installing systemd services..."
+echo "[4/5] Installing systemd services..."
 
 # Replace placeholders in service files before copying
 for service_file in "$DIR/systemd/"*.service "$DIR/systemd/"*.timer; do
@@ -97,7 +106,7 @@ systemctl enable vlc-player vlc-maintenance.timer
 systemctl start vlc-player vlc-maintenance.timer
 
 # --- Install and enable Tailscale (optional join if TAILSCALE_AUTHKEY set) ----
-echo "[4/4] Tailscale..."
+echo "[5/5] Tailscale..."
 if command -v tailscale &>/dev/null; then
   echo "Tailscale already installed."
 else
